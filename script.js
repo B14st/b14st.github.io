@@ -1,8 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
+  const startBtn = document.getElementById("startScan");
+  const scanBtn = document.getElementById("scanNow");
   const beep = document.getElementById("beep");
 
+  let stream = null;
   let expectedItems = {};  // { EAN: { name: string, quantity: number } }
   let scannedItems = {};   // { EAN: number }
 
@@ -25,7 +28,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const lines = fullText.split("\n");
       expectedItems = {};
       for (const line of lines) {
-        const match = line.match(/(\d{8,14})\D{0,10}([A-ZÆØÅa-zæøå\- ]{2,30})/);
+        const words = line.split(/\s+/);
+        for (let i = 0; i < words.length; i++) {
+          const code = words[i].match(/^\d{8,14}$/);
+          if (code) {
+            const nameParts = words.slice(i + 1, i + 4).filter(w => /[A-Za-zÆØÅæøå]/.test(w));
+            const name = nameParts.join(" ");
+            const productId = code[0];
+            if (!expectedItems[productId]) {
+              expectedItems[productId] = { name: name, quantity: 1 };
+            } else {
+              expectedItems[productId].quantity += 1;
+            }
+          }
+        }
         if (match) {
           const code = match[1];
           const name = match[2].trim();
@@ -41,38 +57,39 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsArrayBuffer(file);
   });
 
-  document.getElementById("startScan").addEventListener("click", () => {
-    video.hidden = false;
+  startBtn.addEventListener("click", () => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then((stream) => {
+      .then((s) => {
+        stream = s;
         video.srcObject = stream;
-        video.onloadedmetadata = () => {
-          setTimeout(() => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext("2d").drawImage(video, 0, 0);
-            video.srcObject.getTracks().forEach(t => t.stop());
-
-            Tesseract.recognize(canvas, 'eng')
-              .then(({ data: { text } }) => {
-                const matches = text.match(/\d{8,14}/g);
-                if (matches) {
-                  matches.forEach(code => {
-                    const qtyStr = prompt(`How many of product ${code}?`);
-                    const qty = parseInt(qtyStr);
-                    if (!isNaN(qty)) {
-                      scannedItems[code] = (scannedItems[code] || 0) + qty;
-                      beep.play();
-                    }
-                  });
-                }
-                updateTable();
-              });
-          }, 1000);
-        };
+        video.hidden = false;
+        scanBtn.disabled = false;
       })
-      .catch((err) => {
-        alert("Camera error: " + err.message);
+      .catch((err) => alert("Camera error: " + err.message));
+  });
+
+  scanBtn.addEventListener("click", () => {
+    if (!stream) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    Tesseract.recognize(canvas, 'eng')
+      .then(({ data: { text } }) => {
+        const matches = text.match(/\d{8,14}/g);
+        if (matches) {
+          matches.forEach(code => {
+            const qtyStr = prompt(`How many of product ${code}?`);
+            const qty = parseInt(qtyStr);
+            if (!isNaN(qty)) {
+              scannedItems[code] = (scannedItems[code] || 0) + qty;
+              beep.play();
+            }
+          });
+        }
+        updateTable();
       });
   });
 
