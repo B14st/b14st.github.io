@@ -17,36 +17,33 @@ document.getElementById("pdfUpload").addEventListener("change", async (e) => {
       fullText += content.items.map(item => item.str).join(" ") + " ";
     }
 
-    extractExpectedItems(fullText);
+    const matches = fullText.match(/[A-Z0-9]{6,}/g);
+    expectedItems = {};
+    matches?.forEach(code => {
+      expectedItems[code] = (expectedItems[code] || 0) + 1;
+    });
+
+    document.getElementById("pdfStatus").textContent = `Loaded ${Object.keys(expectedItems).length} unique product codes.`;
+    updateTable();
   };
   reader.readAsArrayBuffer(file);
 });
-
-function extractExpectedItems(text) {
-  const matches = text.match(/[A-Z0-9]{6,}/g);
-  expectedItems = {};
-  matches?.forEach(code => {
-    expectedItems[code] = (expectedItems[code] || 0) + 1;
-  });
-  document.getElementById("pdfStatus").textContent = `Loaded ${Object.keys(expectedItems).length} unique product codes.`;
-  updateTable();
-}
 
 function startCamera() {
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
   const resultDiv = document.getElementById("ocrResult");
-  const beep = document.getElementById("beep");
 
   video.hidden = false;
   navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
     .then((stream) => {
       video.srcObject = stream;
       video.onloadedmetadata = () => {
-        document.getElementById('scanNow').onclick = () => {
+        setTimeout(() => {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           canvas.getContext("2d").drawImage(video, 0, 0);
+          video.srcObject.getTracks().forEach(t => t.stop());
 
           Tesseract.recognize(canvas, 'eng')
             .then(({ data: { text } }) => {
@@ -56,7 +53,6 @@ function startCamera() {
                   scannedItems[code] = (scannedItems[code] || 0) + 1;
                 });
                 resultDiv.innerHTML = `Scanned: ${match.join(", ")}`;
-                beep.play();
               } else {
                 resultDiv.innerHTML = "No valid product number found.";
               }
@@ -67,35 +63,6 @@ function startCamera() {
     })
     .catch((err) => {
       resultDiv.innerHTML = "Camera error: " + err.message;
-    });
-}
-
-function captureNotePhoto() {
-  const video = document.getElementById("noteVideo");
-  video.hidden = false;
-
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-    .then(stream => {
-      video.srcObject = stream;
-
-      video.onloadedmetadata = () => {
-        setTimeout(() => {
-          const canvas = document.createElement("canvas");
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          canvas.getContext("2d").drawImage(video, 0, 0);
-          stream.getTracks().forEach(t => t.stop());
-          video.hidden = true;
-
-          Tesseract.recognize(canvas, 'eng')
-            .then(({ data: { text } }) => {
-              extractExpectedItems(text);
-            });
-        }, 2000);
-      };
-    })
-    .catch(err => {
-      alert("Camera error: " + err.message);
     });
 }
 
