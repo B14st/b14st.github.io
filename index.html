@@ -9,39 +9,20 @@
     input, button { padding: 10px; margin: 10px 0; font-size: 1rem; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    #video, #noteVideo { width: 100%; max-height: 300px; margin-bottom: 10px; }
+    #video { width: 100%; max-height: 300px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
-  <h1>📦 Inventory Scanner</h1>
+  <h1>📦 Inventory Scanner (Stable)</h1>
 
-  <label>📄 Upload Delivery Note (PDF):
-    <input type="file" id="pdfUpload" accept=".pdf">
-  </label>
-  <button onclick="captureNotePhoto()">📷 Take Photo of Delivery Note</button>
-  <video id="noteVideo" autoplay playsinline hidden></video>
-
-  <div id="pdfStatus"></div>
-
-  <hr>
-
-  <button onclick="startCamera()">📷 Start Scanner</button><br>
-<button id="scanNow" disabled>🔍 Scan Now</button><br>
+  <button id="startScan">📷 Start Scanner</button>
+  <button id="scanNow" disabled>🔍 Scan Now</button><br>
   <video id="video" autoplay playsinline hidden></video>
   <canvas id="canvas" hidden></canvas>
   <div id="ocrResult"></div>
 
-  <h2>📋 Reconciliation</h2>
-  <table id="resultsTable">
-    <thead>
-      <tr><th>Product ID</th><th>Expected</th><th>Scanned</th><th>Status</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
   <audio id="beep" src="beep.mp3" preload="auto"></audio>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <script src="script.js"></script>
 </body>
