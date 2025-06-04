@@ -1,44 +1,26 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Inventory Scanner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; padding: 0; }
-    input, button { padding: 10px; margin: 10px 0; font-size: 1rem; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    #video { width: 100%; max-height: 300px; margin-bottom: 10px; }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
 </head>
 <body>
-  <h1>📦 Inventory Scanner</h1>
-
-  <label>📄 Upload Delivery Note (PDF):
-    <input type="file" id="pdfUpload" accept=".pdf">
-  </label>
-
-  <hr>
-
-  <button id="startScan">📷 Start Camera</button>
-  <button id="scanNow" disabled>🔍 Scan Now</button>
+  <h1>Inventory Scanner</h1>
+  <input type="file" id="pdfUpload" accept=".pdf" />
+  <button id="startScan">Start Camera</button>
+  <button id="scanNow" disabled>Scan</button>
   <video id="video" autoplay playsinline hidden></video>
   <canvas id="canvas" hidden></canvas>
-  <div id="ocrResult"></div>
-
-  <h2>📋 Reconciliation</h2>
-  <table id="resultsTable">
+  <audio id="beep" src="beep.mp3" preload="auto"></audio>
+  <table border="1" id="resultsTable">
     <thead>
-      <tr><th>Product ID</th><th>Name</th><th>Expected</th><th>Scanned</th><th>Status</th></tr>
+      <tr><th>EAN</th><th>Product</th><th>Expected</th><th>Scanned</th><th>Status</th></tr>
     </thead>
     <tbody></tbody>
   </table>
-
-  <audio id="beep" src="beep.mp3" preload="auto"></audio>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

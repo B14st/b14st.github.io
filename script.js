@@ -1,3 +1,4 @@
+
 document.addEventListener("DOMContentLoaded", () => {
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
@@ -27,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       expectedItems = {};
       const lines = fullText.split("\n");
-      const regex = /(\d{13})\s+([A-ZÆØÅa-zæøå®\- ]{5,}?)\s+(\d+)\s+STK/gi;
+      const regex = /(\d{13})\s+((?:[A-ZÆØÅa-zæøå®\-]{2,}\s+){1,6})(\d+)\s+STK/gi;
 
       lines.forEach(line => {
         let match;
