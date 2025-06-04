@@ -1,5 +1,6 @@
 let expectedItems = {};
 let scannedItems = {};
+let currentVideoStream = null;
 
 document.getElementById("pdfUpload").addEventListener("change", async (e) => {
   const file = e.target.files[0];
@@ -34,41 +35,48 @@ function extractExpectedItems(text) {
 
 function startCamera() {
   const video = document.getElementById("video");
+  const scanButton = document.getElementById("scanNow");
+  video.hidden = false;
+  scanButton.disabled = true;
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then((stream) => {
+      currentVideoStream = stream;
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        scanButton.disabled = false;
+      };
+    })
+    .catch((err) => {
+      alert("Camera error: " + err.message);
+    });
+}
+
+document.getElementById("scanNow").addEventListener("click", () => {
+  const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
   const resultDiv = document.getElementById("ocrResult");
   const beep = document.getElementById("beep");
 
-  video.hidden = false;
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-    .then((stream) => {
-      video.srcObject = stream;
-      video.onloadedmetadata = () => {
-        document.getElementById('scanNow').onclick = () => {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
 
-          Tesseract.recognize(canvas, 'eng')
-            .then(({ data: { text } }) => {
-              const match = text.match(/[A-Z0-9]{6,}/g);
-              if (match) {
-                match.forEach(code => {
-                  scannedItems[code] = (scannedItems[code] || 0) + 1;
-                });
-                resultDiv.innerHTML = `Scanned: ${match.join(", ")}`;
-                beep.play();
-              } else {
-                resultDiv.innerHTML = "No valid product number found.";
-              }
-              updateTable();
-            });
-        }, 1000);
-      };
-    })
-    .catch((err) => {
-      resultDiv.innerHTML = "Camera error: " + err.message;
+  Tesseract.recognize(canvas, 'eng')
+    .then(({ data: { text } }) => {
+      const match = text.match(/[A-Z0-9]{6,}/g);
+      if (match) {
+        match.forEach(code => {
+          scannedItems[code] = (scannedItems[code] || 0) + 1;
+        });
+        resultDiv.innerHTML = `Scanned: ${match.join(", ")}`;
+        beep.play();
+      } else {
+        resultDiv.innerHTML = "No valid product number found.";
+      }
+      updateTable();
     });
-}
+});
 
 function captureNotePhoto() {
   const video = document.getElementById("noteVideo");
