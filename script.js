@@ -38,14 +38,25 @@ function startCamera() {
   const scanButton = document.getElementById("scanNow");
   video.hidden = false;
   scanButton.disabled = true;
+  document.getElementById("ocrResult").textContent = "📷 Waiting for camera...";
 
   navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
     .then((stream) => {
       currentVideoStream = stream;
       video.srcObject = stream;
-      video.onloadedmetadata = () => {
-        scanButton.disabled = false;
+
+      const onReady = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          scanButton.disabled = false;
+          document.getElementById("ocrResult").textContent = "✅ Camera ready. Tap 'Scan Now' to capture.";
+        } else {
+          // Retry if dimensions not ready
+          setTimeout(onReady, 100);
+        }
       };
+
+      video.onloadedmetadata = onReady;
+      video.play();
     })
     .catch((err) => {
       alert("Camera error: " + err.message);
@@ -57,6 +68,11 @@ document.getElementById("scanNow").addEventListener("click", () => {
   const canvas = document.getElementById("canvas");
   const resultDiv = document.getElementById("ocrResult");
   const beep = document.getElementById("beep");
+
+  if (!video.videoWidth || !video.videoHeight) {
+    resultDiv.textContent = "❌ Video not ready.";
+    return;
+  }
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
