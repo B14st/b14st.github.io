@@ -7,8 +7,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const beep = document.getElementById("beep");
 
   let stream = null;
-  let expectedItems = {};  // { EAN: { name: string, quantity: number } }
-  let scannedItems = {};   // { EAN: number }
+  let expectedItems = {};
+  let scannedItems = {};
 
   document.getElementById("pdfUpload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -28,14 +28,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       expectedItems = {};
       const lines = fullText.split("\n");
-      const regex = /(\d{13})\s+((?:[A-ZÆØÅa-zæøå®\-]{2,}\s+){1,6})(\d+)\s+STK/gi;
+      const regex = /(\d{13})\s+([A-ZÆØÅa-zæøå®\-\s]{5,}?)(?=\d+\s+STK)/gi;
 
       lines.forEach(line => {
         let match;
         while ((match = regex.exec(line)) !== null) {
           const code = match[1];
           const name = match[2].replace(/\s+/g, " ").trim();
-          const quantity = parseInt(match[3]);
+          const qtyMatch = line.match(/(\d+)\s+STK/);
+          const quantity = qtyMatch ? parseInt(qtyMatch[1]) : 1;
           if (!expectedItems[code]) {
             expectedItems[code] = { name, quantity };
           } else {
@@ -44,8 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      console.log("📦 Parsed products:", expectedItems);
-      alert("Loaded " + Object.keys(expectedItems).length + " products from PDF.");
       updateTable();
     };
     reader.readAsArrayBuffer(file);
@@ -56,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .then((s) => {
         stream = s;
         video.srcObject = stream;
-        video.hidden = false;
+        video.style.display = "block";
         scanBtn.disabled = false;
       })
       .catch((err) => alert("Camera error: " + err.message));
