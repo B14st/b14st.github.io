@@ -28,15 +28,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       expectedItems = {};
       const lines = fullText.split("\n");
-      const regex = /(\d{13})\s+([A-ZÆØÅa-zæøå®\-\s]{5,}?)(?=\d+\s+STK)/gi;
+      const regex = /(\d{13})\s+(.*?)\s+(\d+)\s+STK/gi;
 
       lines.forEach(line => {
         let match;
         while ((match = regex.exec(line)) !== null) {
           const code = match[1];
           const name = match[2].replace(/\s+/g, " ").trim();
-          const qtyMatch = line.match(/(\d+)\s+STK/);
-          const quantity = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+          const quantity = parseInt(match[3]);
           if (!expectedItems[code]) {
             expectedItems[code] = { name, quantity };
           } else {
@@ -45,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      updateTable();
+      requestAnimationFrame(updateTable);  // Fix: delay table update
     };
     reader.readAsArrayBuffer(file);
   });
