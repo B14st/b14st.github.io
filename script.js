@@ -1,3 +1,4 @@
+
 document.addEventListener("DOMContentLoaded", () => {
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
@@ -25,33 +26,24 @@ document.addEventListener("DOMContentLoaded", () => {
         fullText += content.items.map(item => item.str).join(" ") + "\n";
       }
 
-      const lines = fullText.split("\n");
       expectedItems = {};
-      for (const line of lines) {
-        const words = line.split(/\s+/);
-        for (let i = 0; i < words.length; i++) {
-          const code = words[i].match(/^\d{8,14}$/);
-          if (code) {
-            const nameParts = words.slice(i + 1, i + 4).filter(w => /[A-Za-zÆØÅæøå]/.test(w));
-            const name = nameParts.join(" ");
-            const productId = code[0];
-            if (!expectedItems[productId]) {
-              expectedItems[productId] = { name: name, quantity: 1 };
-            } else {
-              expectedItems[productId].quantity += 1;
-            }
-          }
-        }
-        if (match) {
+      const lines = fullText.split("\n");
+      const regex = /(\d{13})\s+([A-ZÆØÅa-zæøå®\- ]{5,}?)\s+(\d+)\s+STK/gi;
+
+      lines.forEach(line => {
+        let match;
+        while ((match = regex.exec(line)) !== null) {
           const code = match[1];
-          const name = match[2].trim();
+          const name = match[2].replace(/\s+/g, " ").trim();
+          const quantity = parseInt(match[3]);
           if (!expectedItems[code]) {
-            expectedItems[code] = { name: name, quantity: 1 };
+            expectedItems[code] = { name, quantity };
           } else {
-            expectedItems[code].quantity += 1;
+            expectedItems[code].quantity += quantity;
           }
         }
-      }
+      });
+
       updateTable();
     };
     reader.readAsArrayBuffer(file);
