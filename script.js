@@ -1,4 +1,3 @@
-
 document.addEventListener("DOMContentLoaded", () => {
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
@@ -43,6 +42,9 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       });
+
+      console.log("📦 Parsed products:", expectedItems);
+      alert("Loaded " + Object.keys(expectedItems).length + " products from PDF.");
       updateTable();
     };
     reader.readAsArrayBuffer(file);
