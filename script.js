@@ -43,7 +43,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       });
-
       updateTable();
     };
     reader.readAsArrayBuffer(file);
