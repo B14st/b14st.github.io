@@ -94,12 +94,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     Tesseract.recognize(canvas, 'eng')
       .then(({ data: { text } }) => {
-        const matches = text.match(/\d{5,14}/g);
-        if (matches) {
-          matches.forEach(code => {
-            handleScannedCode(code);
-          });
-        }
+        const matches = [];
+        const labelMatches = [...text.matchAll(/(ART(\.|\s)?(NO|NR)|VARE(NR)?|LEV\.?VARENR|ITEM(\s)?NO|SKU|ITEM#)[\s:\-]*([0-9]{4,13})/gi)];
+        labelMatches.forEach(m => matches.push(m[6]));
+
+        const fallbackMatches = text.match(/\d{5,14}/g) || [];
+        fallbackMatches.forEach(code => {
+          if (!matches.includes(code)) matches.push(code);
+        });
+
+        matches.forEach(code => handleScannedCode(code));
       });
   });
 
