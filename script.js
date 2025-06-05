@@ -7,8 +7,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let expectedItems = {};
   let scannedItems = {};
+  let lastScannedCode = "";
 
-  // Load and parse PDF
   document.getElementById("pdfUpload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -27,23 +27,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
       expectedItems = {};
       const lines = fullText.split("\n");
-      const regex = /(\d{13})\s+(.*?)\s+(\d+)\s+STK/gi;
+      const regex = /(\d{5,7})\s+(\d{5,7})\s+(\d{13})\s+(.*?)\s+(\d+)\s+STK/gi;
 
       lines.forEach(line => {
         let match;
         while ((match = regex.exec(line)) !== null) {
-          const code = match[1];
-          const name = match[2].replace(/\s+/g, " ").trim();
-          const quantity = parseInt(match[3]);
-          if (!expectedItems[code]) {
-            expectedItems[code] = { name, quantity };
-          } else {
-            expectedItems[code].quantity += quantity;
-          }
+          const levVarenr = match[1];
+          const varenr = match[2];
+          const strekkode = match[3];
+          const name = match[4].replace(/\s+/g, " ").trim();
+          const quantity = parseInt(match[5]);
+
+          expectedItems[strekkode] = {
+            altIds: [levVarenr, varenr],
+            name,
+            quantity
+          };
         }
       });
 
-      requestAnimationFrame(updateTable);
+      updateTable();
     };
     reader.readAsArrayBuffer(file);
   });
@@ -55,6 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
         video.style.display = "block";
         scanBtn.disabled = false;
 
+        let lastScanTime = 0;
         Quagga.init({
           inputStream: {
             name: "Live",
@@ -68,20 +72,13 @@ document.addEventListener("DOMContentLoaded", () => {
           Quagga.start();
         });
 
-        let lastScanTime = 0;
-Quagga.onDetected(result => {
-  const now = Date.now();
-  if (now - lastScanTime < 3000) return;
-  lastScanTime = now;
+        Quagga.onDetected(result => {
+          const now = Date.now();
+          if (now - lastScanTime < 3000) return;
+          lastScanTime = now;
+
           const code = result.codeResult.code;
-          const expectedQty = expectedItems[code]?.quantity || 0;
-          const qtyStr = prompt(`Scanned barcode ${code}\nHow many? (Expected: ${expectedQty})`);
-          const qty = parseInt(qtyStr);
-          if (!isNaN(qty)) {
-            scannedItems[code] = (scannedItems[code] || 0) + qty;
-            beep.play();
-            updateTable();
-          }
+          handleScannedCode(code);
         });
 
       })
@@ -97,21 +94,33 @@ Quagga.onDetected(result => {
 
     Tesseract.recognize(canvas, 'eng')
       .then(({ data: { text } }) => {
-        const matches = text.match(/\d{8,14}/g);
+        const matches = text.match(/\d{5,14}/g);
         if (matches) {
           matches.forEach(code => {
-            const expectedQty = expectedItems[code]?.quantity || 0;
-            const qtyStr = prompt(`Scanned OCR ${code}\nHow many? (Expected: ${expectedQty})`);
-            const qty = parseInt(qtyStr);
-            if (!isNaN(qty)) {
-              scannedItems[code] = (scannedItems[code] || 0) + qty;
-              beep.play();
-            }
+            handleScannedCode(code);
           });
         }
-        updateTable();
       });
   });
+
+  function handleScannedCode(inputCode) {
+    let matchedKey = Object.keys(expectedItems).find(k => 
+      k === inputCode || expectedItems[k].altIds.includes(inputCode)
+    );
+
+    if (!matchedKey) return;
+
+    const expectedQty = expectedItems[matchedKey].quantity;
+    const name = expectedItems[matchedKey].name;
+    const qtyStr = prompt(`Scanned ${inputCode} → ${name}\nHow many? (Expected: ${expectedQty})`);
+    const qty = parseInt(qtyStr);
+    if (!isNaN(qty)) {
+      scannedItems[matchedKey] = (scannedItems[matchedKey] || 0) + qty;
+      lastScannedCode = matchedKey;
+      beep.play();
+      updateTable();
+    }
+  }
 
   function updateTable() {
     const tbody = document.querySelector("#resultsTable tbody");
@@ -128,7 +137,9 @@ Quagga.onDetected(result => {
                    scannedQty > expectedQty ? `⚠️ Extra: +${scannedQty - expectedQty}` :
                    `⚠️ Missing: -${expectedQty - scannedQty}`;
 
-      const row = `<tr>
+      const highlightClass = code === lastScannedCode ? " style='background-color:#c6f6d5'" : "";
+
+      const row = `<tr${highlightClass}>
         <td>${code}</td>
         <td>${name}</td>
         <td>${expectedQty}</td>
