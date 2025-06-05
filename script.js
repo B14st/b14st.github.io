@@ -38,8 +38,8 @@ document.addEventListener("DOMContentLoaded", () => {
           const name = match[4].replace(/\s+/g, " ").trim();
           const quantity = parseInt(match[5]);
 
-          expectedItems[strekkode] = {
-            altIds: [levVarenr, varenr],
+          expectedItems[strekkode] = expectedItems[levVarenr] = expectedItems[varenr] = {
+            altIds: [strekkode, levVarenr, varenr],
             name,
             quantity
           };
