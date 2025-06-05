@@ -68,7 +68,11 @@ document.addEventListener("DOMContentLoaded", () => {
           Quagga.start();
         });
 
-        Quagga.onDetected(result => {
+        let lastScanTime = 0;
+Quagga.onDetected(result => {
+  const now = Date.now();
+  if (now - lastScanTime < 3000) return;
+  lastScanTime = now;
           const code = result.codeResult.code;
           const expectedQty = expectedItems[code]?.quantity || 0;
           const qtyStr = prompt(`Scanned barcode ${code}\nHow many? (Expected: ${expectedQty})`);
