@@ -1,4 +1,3 @@
-
 document.addEventListener("DOMContentLoaded", () => {
   const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
@@ -6,10 +5,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const scanBtn = document.getElementById("scanNow");
   const beep = document.getElementById("beep");
 
-  let stream = null;
   let expectedItems = {};
   let scannedItems = {};
 
+  // Load and parse PDF
   document.getElementById("pdfUpload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -44,25 +43,49 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      requestAnimationFrame(updateTable);  // Fix: delay table update
+      requestAnimationFrame(updateTable);
     };
     reader.readAsArrayBuffer(file);
   });
 
   startBtn.addEventListener("click", () => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then((s) => {
-        stream = s;
+      .then((stream) => {
         video.srcObject = stream;
         video.style.display = "block";
         scanBtn.disabled = false;
+
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: video,
+            constraints: { facingMode: "environment" }
+          },
+          decoder: { readers: ["ean_reader"] }
+        }, err => {
+          if (err) return alert("Quagga init error: " + err);
+          Quagga.start();
+        });
+
+        Quagga.onDetected(result => {
+          const code = result.codeResult.code;
+          const expectedQty = expectedItems[code]?.quantity || 0;
+          const qtyStr = prompt(`Scanned barcode ${code}\nHow many? (Expected: ${expectedQty})`);
+          const qty = parseInt(qtyStr);
+          if (!isNaN(qty)) {
+            scannedItems[code] = (scannedItems[code] || 0) + qty;
+            beep.play();
+            updateTable();
+          }
+        });
+
       })
       .catch((err) => alert("Camera error: " + err.message));
   });
 
   scanBtn.addEventListener("click", () => {
-    if (!stream) return;
-
+    if (!video.srcObject) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
@@ -73,7 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const matches = text.match(/\d{8,14}/g);
         if (matches) {
           matches.forEach(code => {
-            const qtyStr = prompt(`How many of product ${code}?`);
+            const expectedQty = expectedItems[code]?.quantity || 0;
+            const qtyStr = prompt(`Scanned OCR ${code}\nHow many? (Expected: ${expectedQty})`);
             const qty = parseInt(qtyStr);
             if (!isNaN(qty)) {
               scannedItems[code] = (scannedItems[code] || 0) + qty;
