@@ -5,24 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Exchange Rate Checker</title>
     <link rel="stylesheet" href="Styles.css" />
-    <script src="script.js"></script>
     
 </head>
 <body>
-    <h1>Exchange Rate Checker</h1>
+    <div class="container">
+        <h1>Exchange Rate Checker</h1>
+        <button id="toggleModeBtn">Switch To Live Rates</button>
+        <div id="googleRateContainer">
+          <label for="googleRate">Google Rate:</label>
+          <input type="text" id="googleRate" inputmode="decimal" pattern="[0-9.]*" />
+        </div>
+        <label>Shop Rate:</label>
+        <input id="shopRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
+        <button onclick="calculateDifference()">Check</button>
+        <div id="result"></div>
+      </div>
 
-    <label>Google Rate:</label>
-    <input id="googleRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
-
-
-
-    <label>Shop Rate:</label>
-    <input id="shopRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
-
-    <button onclick="calculateDifference()">Check</button>
-
-    <div id="result"></div>
-
-
+    <script src="script.js"></script>
 </body>
+
 </html>

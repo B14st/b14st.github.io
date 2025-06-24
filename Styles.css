@@ -11,6 +11,20 @@ body {
     text-align: center;
     margin-bottom: 1.5rem;
   }
+
+  .container {
+    max-width: 430px;           
+    margin: 0 auto;             
+    padding: 1rem;
+  }
+
+  input, select, button {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+  }
   
   /* Stack input elements vertically with spacing */
   label, input {
@@ -37,6 +51,17 @@ body {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+  }
+
+  button#toggleModeBtn {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    background-color: #b92a2a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;  
   }
   
   button:hover {
