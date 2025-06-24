@@ -1,23 +1,22 @@
 function calculateDifference() {
+  const googleInput = document.getElementById("googleRate").value.replace(',', '.');
+  const shopInput = document.getElementById("shopRate").value.replace(',', '.');
 
-    const google = parseFloat(document.getElementById("googleRate").value);
-    const shop = parseFloat(document.getElementById("shopRate").value);
+  const google = parseFloat(googleInput);
+  const shop = parseFloat(shopInput);
 
-    if (isNaN(google) || isNaN(shop) || google <= 0) {
-        console.log("Invalid input");
-        return;
-    }
-    
-    const result = (google - shop) / google * 100;
+  if (isNaN(google) || isNaN(shop) || google <= 0) {
+      console.log("Invalid input");
+      return;
+  }
 
-    console.log(result.toFixed(2));
+  const result = (google - shop) / google * 100;
 
+  console.log(result.toFixed(2));
 
-  
   let colorClass = "result-green";
   if (result > 3) colorClass = "result-red";
   else if (result > 2.5) colorClass = "result-yellow";
-
 
   const resultDiv = document.getElementById("result");
   resultDiv.className = colorClass;
