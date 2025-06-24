@@ -12,12 +12,12 @@
     <h1>Exchange Rate Checker</h1>
 
     <label>Google Rate:</label>
-    <input type="number" id="googleRate" required />
+    <input id="googleRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
 
 
 
     <label>Shop Rate:</label>
-    <input type="number" id="shopRate" required />
+    <input id="shopRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
 
     <button onclick="calculateDifference()">Check</button>
 
