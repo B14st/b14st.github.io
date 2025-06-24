@@ -1,38 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Inventory Scanner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
-    h1 { font-size: 1.8em; }
-    input, button { padding: 10px; font-size: 1em; margin: 5px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 8px 12px; border: 1px solid #ccc; }
-    th { background-color: #f2f2f2; }
-    #video { width: 100%; max-height: 300px; display: none; margin-top: 10px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exchange Rate Checker</title>
+    <link rel="stylesheet" href="Styles.css" />
+    <script src="script.js"></script>
+    
 </head>
 <body>
-  <h1>📦 Inventory Scanner (Universal OCR)</h1>
-  <input type="file" id="pdfUpload" accept=".pdf" />
-  <button id="startScan">Start Camera</button>
-  <button id="scanNow" disabled>Scan with OCR</button>
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" hidden></canvas>
-  <audio id="beep" src="beep.mp3" preload="auto"></audio>
+    <h1>Exchange Rate Checker</h1>
 
-  <table id="resultsTable">
-    <thead>
-      <tr><th>EAN</th><th>Product</th><th>Expected</th><th>Scanned</th><th>Status</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    <label>Google Rate:</label>
+    <input type="number" id="googleRate" required />
 
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist/build/pdf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
-  <script src="https://unpkg.com/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
-  <script src="script.js"></script>
+
+
+    <label>Shop Rate:</label>
+    <input type="number" id="shopRate" required />
+
+    <button onclick="calculateDifference()">Check</button>
+
+    <div id="result"></div>
+
+
 </body>
 </html>
