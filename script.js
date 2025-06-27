@@ -1,51 +1,104 @@
-// 📌 Main function to calculate the percentage difference between Google rate and shop rate
-function calculateDifference() {
-  // Get and normalize user input (replace comma with dot for decimal compatibility)
-  const googleInput = document.getElementById("googleRate").value.replace(',', '.');
-  const shopInput = document.getElementById("shopRate").value.replace(',', '.');
+// Main function that runs when the "Check" button is clicked
+// It compares the shop's rate to the real exchange rate
+async function calculateDifference() {
+  let google;
 
-  // Convert the cleaned string inputs to numbers
-  const google = parseFloat(googleInput);
-  const shop = parseFloat(shopInput);
+  // If live mode is enabled, fetch live exchange rate from the API
+  if (liveMode) {
+    // Get the currencies I selected in the dropdowns
+    const baseCurrency = document.getElementById("baseCurrency").value;
+    const selectedCurrency = document.getElementById("currencySelect").value;
 
-  // Validate inputs: must be valid numbers and Google rate must be greater than zero
-  if (isNaN(google) || isNaN(shop) || google <= 0) {
-      console.log("Invalid input");
+    // Make a request to the API for exchange rates based on my base currency
+    const response = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    const data = await response.json();
+
+    // Get the exchange rate from the base currency to the selected currency
+    google = data.rates[selectedCurrency];
+
+    // Show the live exchange rate under the result (e.g., 1 NOK = 0.09 USD)
+    const rateInfoDiv = document.getElementById("liveRateInfo");
+    rateInfoDiv.textContent = `1 ${baseCurrency} = ${google.toFixed(4)} ${selectedCurrency}`;
+  } else {
+    // If manual mode, get the rate I typed into the input field
+    const googleInput = document.getElementById("googleRate").value.replace(',', '.');
+    google = parseFloat(googleInput);
+
+    // Show an alert if I entered something invalid
+    if (!google) {
+      alert("Could not get exchange rate.");
       return;
+    }
   }
 
-  // Calculate percentage difference using the formula
-  const result = (google - shop) / google * 100;
+  // Get and clean the shop rate I typed in (replace comma with dot)
+  const shopInput = document.getElementById("shopRate").value.replace(',', '.');
+  const shop = parseFloat(shopInput);
 
-  // Log result for debugging
+  // Make sure both rates are valid numbers
+  if (isNaN(google) || isNaN(shop) || google <= 0) {
+    console.log("Invalid input");
+    return;
+  }
+
+  // Calculate how much the shop is charging over or under the real rate (in %)
+  const result = (shop - google) / google * 100;
+
+  // Log the result in the console so I can check it
   console.log(result.toFixed(2));
 
-  // Determine which color class to apply based on the thresholds
-  let colorClass = "result-green";
-  if (result > 3) colorClass = "result-red";
-  else if (result > 2.5) colorClass = "result-yellow";
+  // Decide what color to show based on how big the difference is
+  let colorClass = "result-green"; // Green = acceptable
+  if (result < 0 || result > 3) {
+    colorClass = "result-red"; // Red = bad deal
+  } else if (result > 2.5) {
+    colorClass = "result-yellow"; // Yellow = borderline
+  }
 
-  // Update the result text and style based on the calculated value
+  // Show the result and apply the color style
   const resultDiv = document.getElementById("result");
   resultDiv.className = colorClass;
-  resultDiv.textContent = `Difference: ${result.toFixed(2)}%`; 
+  resultDiv.textContent = `Difference: ${result.toFixed(2)}%`;
 }
 
-// Track whether live mode is currently active
+// Whether live mode is active or not (starts as manual input mode)
 let liveMode = false;
 
-// Get references to the toggle button and the container for the Google rate input
+// These are references to HTML elements I’ll be updating
 const toggleBtn = document.getElementById("toggleModeBtn");
 const googleRateContainer = document.getElementById("googleRateContainer");
 
-// Add click event listener to toggle between manual input and live rate selection
+// When I click the toggle button, switch between live and manual input
 toggleBtn.addEventListener("click", () => {
-  // Toggle the mode flag
-  liveMode = !liveMode;
+  liveMode = !liveMode; // Flip the mode
 
   if (liveMode) {
-    // Switch to live mode: replace input with currency dropdown
+    // Live mode: replace input with dropdowns
     googleRateContainer.innerHTML = `
+      <label for="baseCurrency">Your Currency</label>
+      <select id="baseCurrency">
+        <option value="NOK">NOK</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="SEK">SEK</option>
+        <option value="JPY">JPY</option>
+        <option value="AUD">AUD</option>
+        <option value="CAD">CAD</option>
+        <option value="CHF">CHF</option>
+        <option value="CNY">CNY</option>
+        <option value="INR">INR</option>
+        <option value="KRW">KRW</option>
+        <option value="ZAR">ZAR</option>
+        <option value="MXN">MXN</option>
+        <option value="BRL">BRL</option>
+        <option value="PLN">PLN</option>
+        <option value="TRY">TRY</option>
+        <option value="SGD">SGD</option>
+        <option value="HKD">HKD</option>
+        <option value="DKK">DKK</option>
+      </select>
+
       <label for="currencySelect">Choose Currency</label>
       <select id="currencySelect">
         <option value="USD">USD</option>
@@ -54,11 +107,25 @@ toggleBtn.addEventListener("click", () => {
         <option value="GBP">GBP</option>
         <option value="SEK">SEK</option>
         <option value="JPY">JPY</option>
+        <option value="AUD">AUD</option>
+        <option value="CAD">CAD</option>
+        <option value="CHF">CHF</option>
+        <option value="CNY">CNY</option>
+        <option value="INR">INR</option>
+        <option value="KRW">KRW</option>
+        <option value="ZAR">ZAR</option>
+        <option value="MXN">MXN</option>
+        <option value="BRL">BRL</option>
+        <option value="PLN">PLN</option>
+        <option value="TRY">TRY</option>
+        <option value="SGD">SGD</option>
+        <option value="HKD">HKD</option>
+        <option value="DKK">DKK</option>
       </select>
     `;
     toggleBtn.textContent = "Switch to manual input";
   } else {
-    // Switch back to manual input mode
+    // Manual mode: show the regular input field again
     googleRateContainer.innerHTML = `
       <label for="googleRate">Google Rate:</label>
       <input type="text" id="googleRate" inputmode="decimal" pattern="[0-9.]*" />

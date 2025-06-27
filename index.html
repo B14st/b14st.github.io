@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Exchange Rate Checker</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="Styles.css" />
     
 </head>
 <body>
@@ -12,14 +12,26 @@
         <h1>Exchange Rate Checker</h1>
         <button id="toggleModeBtn">Switch To Live Rates</button>
         <div id="googleRateContainer">
-          <label for="googleRate">Google Rate:</label>
+          <label for="googleRate">Rate from Google:</label>
           <input type="text" id="googleRate" inputmode="decimal" pattern="[0-9.]*" />
         </div>
         <label>Shop Rate:</label>
         <input id="shopRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
         <button onclick="calculateDifference()">Check</button>
         <div id="result"></div>
+        <!-- Shop Rate input -->
+
+
+<!-- 🔽 Add this -->
+<div id="liveRateInfo"></div>
+
+        <div id="liveRateInfo" style="margin-top: 10px; font-weight: bold;"></div>
+
       </div>
+
+      <div class="footer-link">
+  <a href="https://www.exchangerate-api.com/" target="_blank">Rates By Exchange Rate API</a>
+</div>
 
     <script src="script.js"></script>
 </body>

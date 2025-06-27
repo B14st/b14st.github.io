@@ -12,6 +12,11 @@ body {
     margin-bottom: 1.5rem;
   }
 
+ .footer-link {
+  text-align: center;
+  margin-top: 30px;
+}
+
   .container {
     max-width: 430px;           
     margin: 0 auto;             
