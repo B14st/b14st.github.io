@@ -68,20 +68,21 @@ function submitWord() {
   const similarity = getSemanticSimilarity(prevWord, newWord);
 
   const slot = document.getElementById(`slot-${moveCount + 1}`);
-  path.push(newWord);
-  moveCount++;
   let colorClass = "";
 
   if (similarity < minSimilarity) {
     colorClass = "red";
-    messageBox.textContent = `❌ "${newWord}" was too unrelated. ${maxMoves - moveCount} left.`;
+    messageBox.textContent = `❌ "${newWord}" was too unrelated. Move wasted. ${maxMoves - (moveCount + 1)} left.`;
   } else {
     if (similarity >= 0.70) colorClass = "green";
     else if (similarity >= 0.50) colorClass = "yellow";
     else colorClass = "orange";
 
-    messageBox.textContent = `✅ "${newWord}" accepted. Moves left: ${maxMoves - moveCount}`;
+    path.push(newWord); // Only advance the path if word is valid
+    messageBox.textContent = `✅ "${newWord}" accepted. Moves left: ${maxMoves - (moveCount + 1)}`;
   }
+
+  moveCount++;
 
   if (slot) {
     slot.textContent = newWord;
