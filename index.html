@@ -1,39 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exchange Rate Checker</title>
-    <link rel="stylesheet" href="styles.css" />
-    
+  <meta charset="UTF-8" />
+  <title>WordPath</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div class="container">
-        <h1>Exchange Rate Checker</h1>
-        <button id="toggleModeBtn">Switch To Live Rates</button>
-        <div id="googleRateContainer">
-          <label for="googleRate">Rate from Google:</label>
-          <input type="text" id="googleRate" inputmode="decimal" pattern="[0-9.]*" />
-        </div>
-        <label>Shop Rate:</label>
-        <input id="shopRate" type="text" inputmode="decimal" pattern="[0-9.]*" />
-        <button onclick="calculateDifference()">Check</button>
-        <div id="result"></div>
-        <!-- Shop Rate input -->
 
+  <h1>WordPath</h1>
+  <p>Start with the given word and reach the hidden goal in five steps.<br>
+     The word you enter must be semantically related to the one before it.<br>
+     The closer the connection, the greener the tile.</p>
 
-<!-- 🔽 Add this -->
-<div id="liveRateInfo"></div>
+  <div class="grid" id="word-grid">
+    <div class="square start">fire</div>
+    <div class="square" id="slot-1"></div>
+    <div class="square" id="slot-2"></div>
+    <div class="square" id="slot-3"></div>
+    <div class="square" id="slot-4"></div>
+    <div class="square" id="slot-5"></div>
+    <div class="square goal">?</div>
+  </div>
 
-        <div id="liveRateInfo" style="margin-top: 10px; font-weight: bold;"></div>
+  <div>
+    <input type="text" id="input-word" placeholder="Enter next word" />
+    <button onclick="submitWord()">Submit</button>
+  </div>
 
-      </div>
+  <div class="message" id="message-box"></div>
 
-      <div class="footer-link">
-  <a href="https://www.exchangerate-api.com/" target="_blank">Rates By Exchange Rate API</a>
-</div>
-
-    <script src="script.js"></script>
+  <script src="app.js" defer></script>
 </body>
-
 </html>
