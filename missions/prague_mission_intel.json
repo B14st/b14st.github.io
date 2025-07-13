@@ -1,0 +1,77 @@
+{
+  "mid_core": [
+    {
+      "title": "Courier Message July 12th - 23:49",
+      "id": "intel_1",
+      "type": "message",
+      "content": "From: redwing@protonmail.com\nTo: frostpoint@securemail.cz\nSubject: XXXI\n\nUse the old wall — right where the lines cross. Dry and out of sight. Can’t see it unless you’re right next to it. Go at night"
+    },
+        {
+      "title": "Tapped phonecall July 11th - 11:07",
+      "id": "intel_3",
+      "type": "message",
+      "content": "Male Voice 1:\n-You sure you've found the right place?\nMale Voice 2:\n-Has to be. Narrow as hell. Lines cross right above it.\nMale Voice 1:\n-Isn't that area too busy?\n-CONNECTION LOST-"
+    },
+{
+  "title": "Intercepted shortwave radio signal",
+  "id": "intel_2",
+  "type": "audio",
+  "content": {
+    "text": "Recording of a short wave radio signal. It's a known number station that recently became active again. Relevance: pending analysis.",
+    "audio": "assets/audio/NUMBERSTATION-NATO.wav"
+  }
+},
+
+    {
+  "id": "intel_4",
+  "type": "cell_dump",
+  "title": "Cell Tower Data Dump",
+  "content": {
+    "images": [
+      {
+        "filename": "Bird-carving-final-cropped.jpg",
+        "description": "Blurry photo of what looks like a bird carving on a stone wall. Possibly a sign or marking related to the drop",
+        "metadata": "vyhlidka.sec.proxy/cellnode/13"
+      },
+      {
+        "filename": "NarrowStreet.jpg",
+        "description": "Tight alleyway with pedestrian signal. May lead to drop zone or be part of approach route.",
+        "metadata": "vyhlidka.sec.proxy/zone-checkpoint/42"
+      },
+      {
+        "filename": "PragueMapFinal.jpg",
+        "description": "A screenshot of a map of Prague with markings on it, relevance high",
+        "metadata": "vyhlidka.sec.proxy/map-overlay/geo12"
+      },
+      {
+        "filename": "CastleRuins.jpg",
+        "description": "Corrupted photo of Ruins on a hilltop. May be unrelated or an old access point.",
+        "metadata": "archive.courier.log/ruin-node/oldref"
+      }
+    ],
+    "messages": [
+
+    ]
+  }
+}
+
+  ],
+  "advanced_additions": [
+    {
+      "id": "intel_1",
+      "type": "message",
+      "title": "Courier Message (Locked)",
+      "unlock_method": "terminal_command",
+      "unlock_trigger": "decode YHF",
+      "content": "Same content as Mid-Core once unlocked."
+    },
+    {
+      "id": "intel_5",
+      "type": "memo",
+      "title": "Encrypted Memo",
+      "unlock_method": "mini_game",
+      "unlock_trigger": "cipher_puzzle_solved",
+      "content": "FIELD REPORT \u2014 VYHL\u00cdDKA BASTION\n\nUpper overlook gate remains unpatched as of 3 June.\nCamera array failure confirmed by field tech.\nArea marked 'non-priority' by command.\n\n\u2014 ENCR. OPS TEAM"
+    }
+  ]
+}
