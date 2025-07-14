@@ -3,7 +3,7 @@
   "title": "Dead drop",
   "brief": "We’ve intercepted credible chatter indicating a planned attack in Prague. All signs point to a concealed dead drop — likely explosives — scheduled to be placed within the next 72 hours. Time is not on our side. You’ve been granted access to all relevant intelligence gathered from our surveillance teams and local field assets. Some of the intel might not lead anywhere, but we can't take any chances.",
   "location": "Prague, Czech Republic",
-  "objective": "Analyze the intel available to you and find the exact location for the planned dead drop. Use any tools necessary",
+  "objective": "Analyze the intel available to you and find the exact location for the planned dead drop. Use any outside tools necessary, just remember to stay incognito",
   "intel_file": "prague_mission_intel.json",
   "difficulty_modes": {
     "mid_core": {

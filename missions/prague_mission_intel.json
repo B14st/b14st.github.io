@@ -4,10 +4,10 @@
       "title": "Courier Message July 12th - 23:49",
       "id": "intel_1",
       "type": "message",
-      "content": "From: redwing@protonmail.com\nTo: frostpoint@securemail.cz\nSubject: YHF\n\nUse the old wall with the gate — Where the invisible lines point to the middle, check the map. It's a tight fit, but dry and out of sight. Can’t see it unless you’re right next to it.\nRemember, listen to the lady. Go at night"
+      "content": "From: redwing@protonmail.com\nTo: frostpoint@securemail.cz\nSubject: YHF\n\nUse the old wall with the gate — follow the wall until you reach the bastion. It's secluded, dry and out of sight. Can’t see it unless you’re right next to the marker. Remember, listen to the lady, find the middle point. Use the map."
     },
         {
-      "title": "Tapped phonecall July 11th - 11:07",
+      "title": "Tapped phonecall July 10th - 11:07",
       "id": "intel_3",
       "type": "message",
       "content": "Male Voice 1:\n-You sure you've found the right place?\nMale Voice 2:\n-Has to be. Narrow as hell. Lines cross right above it.\nMale Voice 1:\n-Isn't that area too busy?\n-CONNECTION LOST-"
@@ -30,7 +30,7 @@
     "images": [
       {
         "filename": "Bird-carving-final-cropped.jpg",
-        "description": "Blurry photo of what looks like a bird carving on a stone wall. Possibly a sign or marking for finding the drop",
+        "description": "Blurry photo of what looks like a bird carving on a stone wall. Possibly a marking indicating the drop location. Relevance high",
         "metadata": "vyhlidka.sec.proxy/cellnode/13"
       },
       {
@@ -40,7 +40,7 @@
       },
       {
         "filename": "PragueMapFinal.jpg",
-        "description": "A screenshot of a map of Prague with markings on it, relevance high",
+        "description": "A screenshot of a map of Prague with markings on it. Relevance high",
         "metadata": "vyhlidka.sec.proxy/map-overlay/geo12"
       },
       {
