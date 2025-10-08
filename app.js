@@ -46,6 +46,7 @@ let noteEditor = null;
 let productSpecsEditor = null;
 let productInstallEditor = null;
 let currentNotePDF = null; // Store PDF file for upload
+let currentProductPDF = null; // Store PDF file for product upload
 
 // Event Listeners
 elements.loadBtn.addEventListener('click', () => elements.fileInput.click());
@@ -183,7 +184,7 @@ function createMissingTables(missingTables) {
                     ZCONTENT TEXT,
                     ZTAGS TEXT,
                     ZCATEGORY INTEGER,
-                    ZPDFDATA BLOB,
+                    ZPDFDATABASE64 TEXT,
                     ZPDFFILENAME TEXT,
                     ZVIEWCOUNT INTEGER,
                     ZCREATEDDATE REAL,
@@ -196,7 +197,7 @@ function createMissingTables(missingTables) {
                     Z_PK INTEGER PRIMARY KEY,
                     Z_ENT INTEGER,
                     Z_OPT INTEGER,
-                    ZNAME TEXT,
+                    ZPRODUCTNAME TEXT,
                     ZMANUFACTURER TEXT,
                     ZSPECIFICATIONS TEXT,
                     ZINSTALLATIONNOTES TEXT,
@@ -204,7 +205,7 @@ function createMissingTables(missingTables) {
                     ZVIEWCOUNT INTEGER,
                     ZCREATEDDATE REAL,
                     ZLASTVIEWEDDATE REAL,
-                    ZPDFDATA BLOB,
+                    ZPDFDATABASE64 TEXT,
                     ZPDFFILENAME TEXT
                 )
             `);
@@ -216,14 +217,24 @@ function createMissingTables(missingTables) {
 function downloadDatabase() {
     if (!db) return;
 
-    const data = db.export();
-    const blob = new Blob([data], { type: 'application/x-sqlite3' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = currentFileName || 'database.sqlite';
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+        // Verify database integrity before export
+        console.log('Exporting database...');
+        const data = db.export();
+        console.log('Database exported successfully, size:', data.length, 'bytes');
+
+        const blob = new Blob([data], { type: 'application/x-sqlite3' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = currentFileName || 'database.sqlite';
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log('Database download complete');
+    } catch (error) {
+        console.error('Error exporting database:', error);
+        alert('Error exporting database: ' + error.message);
+    }
 }
 
 // Load all data
@@ -414,7 +425,7 @@ function loadNotes() {
     }
 
     const stmt = db.prepare(`
-        SELECT n.Z_PK, n.ZTITLE, n.ZCONTENT, n.ZVIEWCOUNT, n.ZCATEGORY, n.ZPDFDATA, n.ZPDFFILENAME, c.ZNAME as CATEGORYNAME
+        SELECT n.Z_PK, n.ZTITLE, n.ZCONTENT, n.ZVIEWCOUNT, n.ZCATEGORY, n.ZPDFDATABASE64, n.ZPDFFILENAME, c.ZNAME as CATEGORYNAME
         FROM ZINFOITEM n
         LEFT JOIN ZINFOCATEGORY c ON n.ZCATEGORY = c.Z_PK
         ORDER BY n.Z_PK DESC
@@ -423,6 +434,15 @@ function loadNotes() {
     const notes = [];
     while (stmt.step()) {
         const row = stmt.getAsObject();
+        // Decode Base64 PDF data if present
+        let pdfData = null;
+        if (row.ZPDFDATABASE64) {
+            try {
+                pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
+            } catch (e) {
+                console.error('Error decoding PDF Base64:', e);
+            }
+        }
         notes.push({
             id: row.Z_PK,
             title: row.ZTITLE || '',
@@ -430,7 +450,7 @@ function loadNotes() {
             viewCount: row.ZVIEWCOUNT || 0,
             categoryId: row.ZCATEGORY,
             categoryName: row.CATEGORYNAME || 'Uncategorized',
-            pdfData: row.ZPDFDATA,
+            pdfData: pdfData,
             pdfFileName: row.ZPDFFILENAME
         });
     }
@@ -456,10 +476,12 @@ function renderNotes(notes) {
 
     elements.notesList.innerHTML = notes.map(note => `
         <div class="item-card" data-note-id="${note.id}">
-            <div class="item-title">${escapeHtml(note.title)}</div>
+            <div class="item-title">
+                ${escapeHtml(note.title)}
+                ${note.pdfFileName ? '<span style="margin-left: 8px; color: #e74c3c;" title="Has PDF attachment">📎</span>' : ''}
+            </div>
             <div class="item-meta">
                 <span class="category-badge">${escapeHtml(note.categoryName)}</span>
-                ${note.pdfFileName ? `<span class="pdf-badge" title="${escapeHtml(note.pdfFileName)}">📎 PDF</span>` : ''}
             </div>
             <div class="item-content">${escapeHtml(note.content.substring(0, 80))}${note.content.length > 80 ? '...' : ''}</div>
         </div>
@@ -481,12 +503,21 @@ function openNoteEditor(id = null) {
         stmt.bind([id]);
         if (stmt.step()) {
             const row = stmt.getAsObject();
+            // Decode Base64 PDF data if present
+            let pdfData = null;
+            if (row.ZPDFDATABASE64) {
+                try {
+                    pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
+                } catch (e) {
+                    console.error('Error decoding PDF Base64:', e);
+                }
+            }
             note = {
                 id: row.Z_PK,
                 title: row.ZTITLE || '',
                 content: row.ZCONTENT || '',
                 categoryId: row.ZCATEGORY,
-                pdfData: row.ZPDFDATA,
+                pdfData: pdfData,
                 pdfFileName: row.ZPDFFILENAME
             };
         }
@@ -629,38 +660,52 @@ function saveNoteFromEditor() {
 
     const id = currentEditingNote?.id;
 
-    // Determine PDF data and filename
-    let pdfData = currentEditingNote?.pdfData;
-    let pdfFileName = currentEditingNote?.pdfFileName;
+    // Handle PDF data - convert to Base64 for cross-platform compatibility
+    let pdfDataBase64 = null;
+    let pdfFileName = null;
 
     if (currentNotePDF) {
-        // New PDF uploaded
-        pdfData = currentNotePDF.data;
+        // New PDF uploaded - convert to Base64
+        pdfDataBase64 = arrayBufferToBase64(currentNotePDF.data);
         pdfFileName = currentNotePDF.name;
-    } else if (currentEditingNote?.pdfRemoved) {
-        // PDF removed
-        pdfData = null;
-        pdfFileName = null;
+    } else if (currentEditingNote && !currentEditingNote.pdfRemoved && currentEditingNote.pdfData) {
+        // Keep existing PDF - convert to Base64
+        pdfDataBase64 = arrayBufferToBase64(currentEditingNote.pdfData);
+        pdfFileName = currentEditingNote.pdfFileName;
     }
 
-    if (id) {
-        // Update existing
-        db.run(`
-            UPDATE ZINFOITEM
-            SET ZTITLE = ?, ZCONTENT = ?, ZCATEGORY = ?, ZPDFDATA = ?, ZPDFFILENAME = ?
-            WHERE Z_PK = ?
-        `, [title, content, categoryId || null, pdfData, pdfFileName, id]);
-    } else {
-        // Insert new
-        const maxId = getMaxId('ZINFOITEM');
-        db.run(`
-            INSERT INTO ZINFOITEM (Z_PK, Z_ENT, Z_OPT, ZTITLE, ZCONTENT, ZCATEGORY, ZPDFDATA, ZPDFFILENAME, ZVIEWCOUNT)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [maxId + 1, 1, 1, title, content, categoryId || null, pdfData, pdfFileName, 0]);
-    }
+    try {
+        if (id) {
+            // Update existing
+            db.run(`
+                UPDATE ZINFOITEM
+                SET ZTITLE = ?, ZCONTENT = ?, ZCATEGORY = ?, ZPDFDATABASE64 = ?, ZPDFFILENAME = ?
+                WHERE Z_PK = ?
+            `, [title, content, categoryId || null, pdfDataBase64, pdfFileName, id]);
+            console.log('Note updated successfully, PDF:', pdfFileName ? 'Yes' : 'No');
+        } else {
+            // Insert new
+            const maxId = getMaxId('ZINFOITEM');
+            db.run(`
+                INSERT INTO ZINFOITEM (Z_PK, Z_ENT, Z_OPT, ZTITLE, ZCONTENT, ZCATEGORY, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [maxId + 1, 1, 1, title, content, categoryId || null, 0, pdfDataBase64, pdfFileName]);
+            console.log('Note inserted successfully, PDF:', pdfFileName ? 'Yes' : 'No');
+        }
 
-    loadNotes();
-    closeNoteEditor();
+        // Verify the save worked
+        const verifyStmt = db.prepare('SELECT COUNT(*) as count FROM ZINFOITEM');
+        verifyStmt.step();
+        const result = verifyStmt.getAsObject();
+        verifyStmt.free();
+        console.log('Total notes in database:', result.count);
+
+        loadNotes();
+        closeNoteEditor();
+    } catch (error) {
+        console.error('Error saving note:', error);
+        alert('Error saving note: ' + error.message);
+    }
 }
 
 // PDF handling functions
@@ -726,6 +771,77 @@ function removeNotePDF() {
     // Update UI to show upload button
     document.getElementById('pdfAttachment').innerHTML = `
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('notePdfInput').click()">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+            </svg>
+            Attach PDF
+        </button>
+    `;
+}
+
+// Product PDF handling functions
+async function handleProductPDFUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+        alert('Please select a PDF file');
+        return;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    currentProductPDF = {
+        data: uint8Array,
+        name: file.name
+    };
+
+    // Update UI to show uploaded PDF
+    document.getElementById('productPdfAttachment').innerHTML = `
+        <div class="pdf-attachment">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                <path d="M4.603 14.087a.81.81 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a7.68 7.68 0 0 1 1.482-.645 19.697 19.697 0 0 0 1.062-2.227 7.269 7.269 0 0 1-.43-1.295c-.086-.4-.119-.796-.046-1.136.075-.354.274-.672.65-.823.192-.077.4-.12.602-.077a.7.7 0 0 1 .477.365c.088.164.12.356.127.538.007.188-.012.396-.047.614-.084.51-.27 1.134-.52 1.794a10.954 10.954 0 0 0 .98 1.686 5.753 5.753 0 0 1 1.334.05c.364.066.734.195.96.465.12.144.193.32.2.518.007.192-.047.382-.138.563a1.04 1.04 0 0 1-.354.416.856.856 0 0 1-.51.138c-.331-.014-.654-.196-.933-.417a5.712 5.712 0 0 1-.911-.95 11.651 11.651 0 0 0-1.997.406 11.307 11.307 0 0 1-1.02 1.51c-.292.35-.609.656-.927.787a.793.793 0 0 1-.58.029zm1.379-1.901c-.166.076-.32.156-.459.238-.328.194-.541.383-.647.547-.094.145-.096.25-.04.361.01.022.02.036.026.044a.266.266 0 0 0 .035-.012c.137-.056.355-.235.635-.572a8.18 8.18 0 0 0 .45-.606zm1.64-1.33a12.71 12.71 0 0 1 1.01-.193 11.744 11.744 0 0 1-.51-.858 20.801 20.801 0 0 1-.5 1.05zm2.446.45c.15.163.296.3.435.41.24.19.407.253.498.256a.107.107 0 0 0 .07-.015.307.307 0 0 0 .094-.125.436.436 0 0 0 .059-.2.095.095 0 0 0-.026-.063c-.052-.062-.2-.152-.518-.209a3.876 3.876 0 0 0-.612-.053zM8.078 7.8a6.7 6.7 0 0 0 .2-.828c.031-.188.043-.343.038-.465a.613.613 0 0 0-.032-.198.517.517 0 0 0-.145.04c-.087.035-.158.106-.196.283-.04.192-.03.469.046.822.024.111.054.227.09.346z"/>
+            </svg>
+            <span>${escapeHtml(file.name)} (new)</span>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeProductPDF()">Remove</button>
+        </div>
+    `;
+}
+
+function viewProductPDF() {
+    const pdfData = currentEditingProduct?.pdfData;
+    if (!pdfData) return;
+
+    const blob = new Blob([pdfData], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+}
+
+function downloadProductPDF() {
+    const pdfData = currentEditingProduct?.pdfData;
+    const pdfFileName = currentEditingProduct?.pdfFileName || 'document.pdf';
+    if (!pdfData) return;
+
+    const blob = new Blob([pdfData], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = pdfFileName;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function removeProductPDF() {
+    currentProductPDF = null;
+    if (currentEditingProduct) {
+        currentEditingProduct.pdfRemoved = true;
+    }
+
+    // Update UI to show upload button
+    document.getElementById('productPdfAttachment').innerHTML = `
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('productPdfInput').click()">
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
             </svg>
@@ -812,7 +928,7 @@ function loadProducts() {
     }
 
     const stmt = db.prepare(`
-        SELECT Z_PK, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT
+        SELECT Z_PK, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME
         FROM ZPRODUCTDOC
         ORDER BY Z_PK DESC
     `);
@@ -820,13 +936,24 @@ function loadProducts() {
     const products = [];
     while (stmt.step()) {
         const row = stmt.getAsObject();
+        // Decode Base64 PDF data if present
+        let pdfData = null;
+        if (row.ZPDFDATABASE64) {
+            try {
+                pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
+            } catch (e) {
+                console.error('Error decoding PDF Base64:', e);
+            }
+        }
         products.push({
             id: row.Z_PK,
             name: row.ZPRODUCTNAME || '',
             manufacturer: row.ZMANUFACTURER || '',
             specifications: row.ZSPECIFICATIONS || '',
             installationNotes: row.ZINSTALLATIONNOTES || '',
-            viewCount: row.ZVIEWCOUNT || 0
+            viewCount: row.ZVIEWCOUNT || 0,
+            pdfData: pdfData,
+            pdfFileName: row.ZPDFFILENAME
         });
     }
     stmt.free();
@@ -851,7 +978,10 @@ function renderProducts(products) {
 
     elements.productsList.innerHTML = products.map(product => `
         <div class="item-card" data-product-id="${product.id}">
-            <div class="item-title">${escapeHtml(product.name)}</div>
+            <div class="item-title">
+                ${escapeHtml(product.name)}
+                ${product.pdfFileName ? '<span style="margin-left: 8px; color: #e74c3c;" title="Has PDF attachment">📎</span>' : ''}
+            </div>
             <div class="item-meta">
                 <span>${escapeHtml(product.manufacturer)}</span>
             </div>
@@ -875,18 +1005,30 @@ function openProductEditor(id = null) {
         stmt.bind([id]);
         if (stmt.step()) {
             const row = stmt.getAsObject();
+            // Decode Base64 PDF data if present
+            let pdfData = null;
+            if (row.ZPDFDATABASE64) {
+                try {
+                    pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
+                } catch (e) {
+                    console.error('Error decoding PDF Base64:', e);
+                }
+            }
             product = {
                 id: row.Z_PK,
                 name: row.ZPRODUCTNAME || '',
                 manufacturer: row.ZMANUFACTURER || '',
                 specifications: row.ZSPECIFICATIONS || '',
-                installationNotes: row.ZINSTALLATIONNOTES || ''
+                installationNotes: row.ZINSTALLATIONNOTES || '',
+                pdfData: pdfData,
+                pdfFileName: row.ZPDFFILENAME
             };
         }
         stmt.free();
     }
 
     currentEditingProduct = product;
+    currentProductPDF = null; // Reset PDF upload
 
     // Render editor
     elements.productEditor.innerHTML = `
@@ -898,6 +1040,33 @@ function openProductEditor(id = null) {
                 <div class="form-group">
                     <label>Manufacturer</label>
                     <input type="text" id="productManufacturer" value="${product ? escapeHtml(product.manufacturer) : ''}" placeholder="Enter manufacturer">
+                </div>
+                <div class="form-group">
+                    <label>PDF Attachment</label>
+                    <div class="pdf-upload-area">
+                        <input type="file" id="productPdfInput" accept=".pdf" style="display: none;" onchange="handleProductPDFUpload(event)">
+                        <div id="productPdfAttachment">
+                            ${product && product.pdfFileName ? `
+                                <div class="pdf-attachment">
+                                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                                        <path d="M4.603 14.087a.81.81 0 0 1-.438-.42c-.195-.388-.13-.776.08-1.102.198-.307.526-.568.897-.787a7.68 7.68 0 0 1 1.482-.645 19.697 19.697 0 0 0 1.062-2.227 7.269 7.269 0 0 1-.43-1.295c-.086-.4-.119-.796-.046-1.136.075-.354.274-.672.65-.823.192-.077.4-.12.602-.077a.7.7 0 0 1 .477.365c.088.164.12.356.127.538.007.188-.012.396-.047.614-.084.51-.27 1.134-.52 1.794a10.954 10.954 0 0 0 .98 1.686 5.753 5.753 0 0 1 1.334.05c.364.066.734.195.96.465.12.144.193.32.2.518.007.192-.047.382-.138.563a1.04 1.04 0 0 1-.354.416.856.856 0 0 1-.51.138c-.331-.014-.654-.196-.933-.417a5.712 5.712 0 0 1-.911-.95 11.651 11.651 0 0 0-1.997.406 11.307 11.307 0 0 1-1.02 1.51c-.292.35-.609.656-.927.787a.793.793 0 0 1-.58.029zm1.379-1.901c-.166.076-.32.156-.459.238-.328.194-.541.383-.647.547-.094.145-.096.25-.04.361.01.022.02.036.026.044a.266.266 0 0 0 .035-.012c.137-.056.355-.235.635-.572a8.18 8.18 0 0 0 .45-.606zm1.64-1.33a12.71 12.71 0 0 1 1.01-.193 11.744 11.744 0 0 1-.51-.858 20.801 20.801 0 0 1-.5 1.05zm2.446.45c.15.163.296.3.435.41.24.19.407.253.498.256a.107.107 0 0 0 .07-.015.307.307 0 0 0 .094-.125.436.436 0 0 0 .059-.2.095.095 0 0 0-.026-.063c-.052-.062-.2-.152-.518-.209a3.876 3.876 0 0 0-.612-.053zM8.078 7.8a6.7 6.7 0 0 0 .2-.828c.031-.188.043-.343.038-.465a.613.613 0 0 0-.032-.198.517.517 0 0 0-.145.04c-.087.035-.158.106-.196.283-.04.192-.03.469.046.822.024.111.054.227.09.346z"/>
+                                    </svg>
+                                    <span>${escapeHtml(product.pdfFileName)}</span>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="viewProductPDF()">View</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="downloadProductPDF()">Download</button>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeProductPDF()">Remove</button>
+                                </div>
+                            ` : `
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('productPdfInput').click()">
+                                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                                    </svg>
+                                    Attach PDF
+                                </button>
+                            `}
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Specifications</label>
@@ -1001,20 +1170,34 @@ function saveProductFromEditor() {
 
     const id = currentEditingProduct?.id;
 
+    // Handle PDF data - convert to Base64 for cross-platform compatibility
+    let pdfDataBase64 = null;
+    let pdfFileName = null;
+
+    if (currentProductPDF) {
+        // New PDF uploaded - convert to Base64
+        pdfDataBase64 = arrayBufferToBase64(currentProductPDF.data);
+        pdfFileName = currentProductPDF.name;
+    } else if (currentEditingProduct && !currentEditingProduct.pdfRemoved && currentEditingProduct.pdfData) {
+        // Keep existing PDF - convert to Base64
+        pdfDataBase64 = arrayBufferToBase64(currentEditingProduct.pdfData);
+        pdfFileName = currentEditingProduct.pdfFileName;
+    }
+
     if (id) {
         // Update existing
         db.run(`
             UPDATE ZPRODUCTDOC
-            SET ZPRODUCTNAME = ?, ZMANUFACTURER = ?, ZSPECIFICATIONS = ?, ZINSTALLATIONNOTES = ?
+            SET ZPRODUCTNAME = ?, ZMANUFACTURER = ?, ZSPECIFICATIONS = ?, ZINSTALLATIONNOTES = ?, ZPDFDATABASE64 = ?, ZPDFFILENAME = ?
             WHERE Z_PK = ?
-        `, [name, manufacturer, specifications, installationNotes, id]);
+        `, [name, manufacturer, specifications, installationNotes, pdfDataBase64, pdfFileName, id]);
     } else {
         // Insert new
         const maxId = getMaxId('ZPRODUCTDOC');
         db.run(`
-            INSERT INTO ZPRODUCTDOC (Z_PK, Z_ENT, Z_OPT, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [maxId + 1, 3, 1, name, manufacturer, specifications, installationNotes, 0]);
+            INSERT INTO ZPRODUCTDOC (Z_PK, Z_ENT, Z_OPT, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [maxId + 1, 3, 1, name, manufacturer, specifications, installationNotes, 0, pdfDataBase64, pdfFileName]);
     }
 
     loadProducts();
@@ -1074,6 +1257,27 @@ function openProductModal(id = null) {
 
 // === UTILITIES ===
 
+// Base64 conversion helpers for PDF data
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
 function getMaxId(tableName) {
     const stmt = db.prepare(`SELECT MAX(Z_PK) as maxId FROM ${tableName}`);
     stmt.step();
@@ -1127,6 +1331,10 @@ window.handleNotePDFUpload = handleNotePDFUpload;
 window.viewNotePDF = viewNotePDF;
 window.downloadNotePDF = downloadNotePDF;
 window.removeNotePDF = removeNotePDF;
+window.handleProductPDFUpload = handleProductPDFUpload;
+window.viewProductPDF = viewProductPDF;
+window.downloadProductPDF = downloadProductPDF;
+window.removeProductPDF = removeProductPDF;
 
 // Initialize on load
 window.addEventListener('DOMContentLoaded', () => {
