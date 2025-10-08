@@ -1,86 +1,190 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRYPTIQ OS [SECURE]</title>
+    <title>Database Editor</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 </head>
-<!-- Image Modal Overlay -->
-<div id="image-modal" class="intel-modal" onclick="closeImageModal()">
-  <img id="modal-image" class="modal-image">
-  <div id="modal-caption" class="modal-caption"></div>
-</div>
-
-
-
-
-
-    <div class="terminal-container">
-        <div class="grid-overlay"></div>
-
-        <div class="sidebar" id="sidebar">
-            <div id="sidebar">
-            <div class="sidebar-toggle" onclick="toggleSidebar()">
-                <span id="toggle-icon">›</span>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1>Database Editor</h1>
+            <div class="header-actions">
+                <input type="file" id="fileInput" accept=".sqlite" style="display: none;">
+                <button id="loadBtn" class="btn btn-primary">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                    </svg>
+                    Load Database
+                </button>
+                <button id="downloadBtn" class="btn btn-success" disabled>
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                    </svg>
+                    Download Database
+                </button>
+                <span id="dbName" class="db-name"></span>
             </div>
-            <div class="classified-header">═══ CLASSIFIED ═══</div>
-            <div class="nav-item active" onclick="showSection('mission')">-MISSION BRIEF</div>
-            <div class="nav-item" onclick="showSection('intel')">-INTELLIGENCE (PLACEHOLDER)</div>
-            <div class="nav-item" onclick="showSection('analysis')">-ANALYSIS (PLACEHOLDER)</div>
-            <div class="nav-item" onclick="showSection('tools')">-TOOLS (PLACEHOLDER)</div>
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #333;">
-                <div class="section-title">Location: Prague</div>
-                <div style="font-size: 12px; color: #888;">
-                    • Local Time: 14:42 CET<br>
-                    • Weather: Clear, E winds<br>
-                    • Temperature: 18°C
-                </div>
-            </div>
-            <div style="margin-top: 20px;">
-                <div class="section-title">Persons of interest</div>
-                <div style="font-size: 12px; color: #888;">
-                    • RED (courier)<br>
-                    • BLUE (sleeper agent)<br>
-                    • YELLOW (handler)
-                      <div class="notepad">
-    <div class="notepad-title">Agent Notes</div>
-    <textarea id="notepad-area" placeholder="Write down your thoughts here..."></textarea>
-  </div>
-</div>
-                </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Welcome Screen -->
+        <div id="welcomeScreen" class="welcome-screen">
+            <div class="welcome-content">
+                <svg width="80" height="80" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.105V5.383zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741zM1 11.105l4.708-2.897L1 5.383v5.722z"/>
+                </svg>
+                <h2>Welcome to Database Editor</h2>
+                <p>Load a .sqlite database file to get started</p>
+                <button id="welcomeLoadBtn" class="btn btn-primary btn-large">
+                    Load Database
+                </button>
             </div>
         </div>
 
-        <div class="main-terminal">
-            <div class="header">
-                <div class="logo" onclick="toggleSidebar()">CRYPTIQ OS</div>
-                <div class="status">
-                    SECURE CONNECTION ESTABLISHED<br>
-                     TODAY'S MISSION - ACTIVE
+        <!-- Tab Navigation -->
+        <div id="appContent" class="app-content" style="display: none;">
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="notes">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5 0h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2 2 2 0 0 1-2 2H3a2 2 0 0 1-2-2h1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1H1a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v9a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1H3a2 2 0 0 1 2-2z"/>
+                        <path d="M1 6v-.5a.5.5 0 0 1 1 0V6h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V9h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 2.5v.5H.5a.5.5 0 0 0 0 1h2a.5.5 0 0 0 0-1H2v-.5a.5.5 0 0 0-1 0z"/>
+                    </svg>
+                    Notes
+                </button>
+                <button class="tab-btn" data-tab="products">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z"/>
+                    </svg>
+                    Products
+                </button>
+                <button class="tab-btn" data-tab="categories">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                    </svg>
+                    Categories
+                </button>
+            </nav>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Notes Tab -->
+                <div id="notesTab" class="tab-pane active">
+                    <div class="split-pane" id="notesSplitPane">
+                        <!-- Sidebar Toggle -->
+                        <button class="sidebar-toggle" onclick="toggleNotesSidebar()" title="Toggle sidebar">
+                            <svg fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+                            </svg>
+                        </button>
+
+                        <!-- Left: Notes List -->
+                        <div class="split-left" id="notesSidebar">
+                            <div class="split-header">
+                                <h2>Notes</h2>
+                                <button id="addNoteBtn" class="btn btn-primary btn-icon">
+                                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="notesList" class="split-list"></div>
+                        </div>
+
+                        <!-- Right: Note Editor -->
+                        <div class="split-right">
+                            <div id="noteEditor" class="editor-container">
+                                <div class="editor-placeholder">
+                                    <svg width="80" height="80" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M5 0h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2 2 2 0 0 1-2 2H3a2 2 0 0 1-2-2h1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1H1a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v9a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1H3a2 2 0 0 1 2-2z"/>
+                                    </svg>
+                                    <p>Select a note to edit or create a new one</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products Tab -->
+                <div id="productsTab" class="tab-pane">
+                    <div class="split-pane" id="productsSplitPane">
+                        <!-- Sidebar Toggle -->
+                        <button class="sidebar-toggle" onclick="toggleProductsSidebar()" title="Toggle sidebar">
+                            <svg fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+                            </svg>
+                        </button>
+
+                        <!-- Left: Products List -->
+                        <div class="split-left" id="productsSidebar">
+                            <div class="split-header">
+                                <h2>Products</h2>
+                                <button id="addProductBtn" class="btn btn-primary btn-icon">
+                                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="productsList" class="split-list"></div>
+                        </div>
+
+                        <!-- Right: Product Editor -->
+                        <div class="split-right">
+                            <div id="productEditor" class="editor-container">
+                                <div class="editor-placeholder">
+                                    <svg width="80" height="80" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                                    </svg>
+                                    <p>Select a product to edit or create a new one</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Categories Tab -->
+                <div id="categoriesTab" class="tab-pane">
+                    <div class="tab-header">
+                        <h2>Categories</h2>
+                        <button id="addCategoryBtn" class="btn btn-primary">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                            </svg>
+                            Add Category
+                        </button>
+                    </div>
+                    <div id="categoriesList" class="items-list"></div>
                 </div>
             </div>
-
-            <div id="content-area"></div>
-
-            <div class="command-line">
-                <span style="color: #ff6b6b;">agent@cryptiq:~$</span>
-                <input type="text" class="command-input" placeholder="Enter command..." onkeypress="handleCommand(event)">
-                <span class="blinking-cursor">█</span>
-            </div>
         </div>
-    </div>
+    </main>
 
+    <!-- Modal for Add/Edit -->
     <div id="modal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <div id="modal-body"></div>
+            <div class="modal-header">
+                <h3 id="modalTitle">Add Item</h3>
+                <button id="modalClose" class="btn-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancel" class="btn btn-secondary">Cancel</button>
+                <button id="modalSave" class="btn btn-primary">Save</button>
+            </div>
         </div>
     </div>
-    
 
-    <script src="js/commands.js"></script>
-    <script src="js/main.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
