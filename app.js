@@ -38,7 +38,11 @@ const elements = {
     productEditor: document.getElementById('productEditor'),
     addNoteBtn: document.getElementById('addNoteBtn'),
     addProductBtn: document.getElementById('addProductBtn'),
-    addCategoryBtn: document.getElementById('addCategoryBtn')
+    addCategoryBtn: document.getElementById('addCategoryBtn'),
+    themeToggle: document.getElementById('themeToggle'),
+    themeIcon: document.getElementById('themeIcon'),
+    notesCategoryFilter: document.getElementById('notesCategoryFilter'),
+    notesSortBy: document.getElementById('notesSortBy')
 };
 
 // Current editing state
@@ -487,15 +491,20 @@ function renderCategories(categories) {
 
     elements.categoriesList.innerHTML = categories.map(cat => {
         return `
-            <div class="item-card" onclick="openCategoryModal(${cat.id})">
+            <div class="item-card category-item"
+                 draggable="true"
+                 data-category-id="${cat.id}"
+                 data-sort-order="${cat.sortOrder}">
                 <div class="item-header">
-                    <div>
+                    <div class="drag-handle" title="Drag to reorder">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                        </svg>
+                    </div>
+                    <div onclick="openCategoryModal(${cat.id})" style="flex: 1; cursor: pointer;">
                         <div class="item-title">
                             <span style="margin-right: 8px;">${cat.icon}</span>
                             ${escapeHtml(cat.name)}
-                        </div>
-                        <div class="item-meta">
-                            <span>Sort Order: ${cat.sortOrder}</span>
                         </div>
                     </div>
                     <div class="item-actions" onclick="event.stopPropagation()">
@@ -505,6 +514,81 @@ function renderCategories(categories) {
             </div>
         `;
     }).join('');
+
+    // Add drag and drop listeners
+    setupCategoryDragAndDrop();
+}
+
+function setupCategoryDragAndDrop() {
+    const categoryItems = document.querySelectorAll('.category-item');
+    let draggedItem = null;
+
+    categoryItems.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            draggedItem = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', item.innerHTML);
+        });
+
+        item.addEventListener('dragend', (e) => {
+            item.classList.remove('dragging');
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            const afterElement = getDragAfterElement(elements.categoriesList, e.clientY);
+            if (afterElement == null) {
+                elements.categoriesList.appendChild(draggedItem);
+            } else {
+                elements.categoriesList.insertBefore(draggedItem, afterElement);
+            }
+        });
+
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            updateCategorySortOrder();
+        });
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.category-item:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function updateCategorySortOrder() {
+    const categoryItems = document.querySelectorAll('.category-item');
+    const updates = [];
+
+    categoryItems.forEach((item, index) => {
+        const categoryId = parseInt(item.dataset.categoryId);
+        const newSortOrder = index;
+        updates.push({ id: categoryId, sortOrder: newSortOrder });
+    });
+
+    // Update database
+    updates.forEach(update => {
+        db.run(`
+            UPDATE ZINFOCATEGORY
+            SET ZSORTORDER = ?
+            WHERE Z_PK = ?
+        `, [update.sortOrder, update.id]);
+    });
+
+    console.log('Updated category sort order');
 }
 
 function openCategoryModal(id = null) {
@@ -626,6 +710,93 @@ function loadNotes() {
     stmt.free();
 
     console.log(`Loaded ${notes.length} notes`);
+
+    // Load categories into filter
+    loadNotesCategories();
+
+    // Render with current filters
+    renderNotes(notes);
+}
+
+function loadNotesCategories() {
+    const categoryFilter = elements.notesCategoryFilter;
+
+    // Get all categories
+    const stmt = db.prepare('SELECT Z_PK, ZNAME FROM ZINFOCATEGORY ORDER BY ZNAME');
+    const categories = [];
+
+    while (stmt.step()) {
+        const row = stmt.getAsObject();
+        categories.push({
+            id: row.Z_PK,
+            name: row.ZNAME
+        });
+    }
+    stmt.free();
+
+    // Populate filter dropdown
+    categoryFilter.innerHTML = '<option value="">All Categories</option>' +
+        categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join('');
+}
+
+function getFilteredAndSortedNotes() {
+    // Get all notes
+    const stmt = db.prepare(`
+        SELECT n.Z_PK, n.ZTITLE, n.ZCONTENT, n.ZVIEWCOUNT, n.ZCATEGORY,
+               n.ZPDFFILENAME, n.ZPDFMIMETYPE, n.ZPDFSIZE, n.ZPDFHASH, n.ZPDFRELATIVEPATH,
+               c.ZNAME as CATEGORYNAME
+        FROM ZINFOITEM n
+        LEFT JOIN ZINFOCATEGORY c ON n.ZCATEGORY = c.Z_PK
+    `);
+
+    const notes = [];
+    while (stmt.step()) {
+        const row = stmt.getAsObject();
+        notes.push({
+            id: row.Z_PK,
+            title: row.ZTITLE || '',
+            content: row.ZCONTENT || '',
+            viewCount: row.ZVIEWCOUNT || 0,
+            categoryId: row.ZCATEGORY,
+            categoryName: row.CATEGORYNAME || 'Uncategorized',
+            pdfFileName: row.ZPDFFILENAME,
+            pdfMimeType: row.ZPDFMIMETYPE,
+            pdfSize: row.ZPDFSIZE,
+            pdfHash: row.ZPDFHASH,
+            pdfRelativePath: row.ZPDFRELATIVEPATH
+        });
+    }
+    stmt.free();
+
+    // Apply category filter
+    const selectedCategory = elements.notesCategoryFilter.value;
+    let filtered = notes;
+    if (selectedCategory) {
+        filtered = notes.filter(note => note.categoryId == selectedCategory);
+    }
+
+    // Apply sorting
+    const sortBy = elements.notesSortBy.value;
+    filtered.sort((a, b) => {
+        switch (sortBy) {
+            case 'newest':
+                return b.id - a.id;
+            case 'oldest':
+                return a.id - b.id;
+            case 'title':
+                return (a.title || '').localeCompare(b.title || '');
+            case 'title-desc':
+                return (b.title || '').localeCompare(a.title || '');
+            default:
+                return b.id - a.id;
+        }
+    });
+
+    return filtered;
+}
+
+function refreshNotesList() {
+    const notes = getFilteredAndSortedNotes();
     renderNotes(notes);
 }
 
@@ -1534,6 +1705,78 @@ window.downloadProductPDF = downloadProductPDF;
 window.removeProductPDF = removeProductPDF;
 
 // Initialize on load
+// Theme management
+const THEME_KEY = 'theme-preference';
+
+function getThemePreference() {
+    return localStorage.getItem(THEME_KEY) || 'auto';
+}
+
+function setThemePreference(theme) {
+    localStorage.setItem(THEME_KEY, theme);
+    applyTheme(theme);
+}
+
+function applyTheme(theme) {
+    const body = document.body;
+
+    // Remove existing theme classes
+    body.classList.remove('light-theme', 'dark-theme');
+
+    // Apply new theme
+    if (theme === 'light') {
+        body.classList.add('light-theme');
+    } else if (theme === 'dark') {
+        body.classList.add('dark-theme');
+    }
+    // If 'auto', don't add any class - will use system preference
+
+    updateThemeIcon(theme);
+}
+
+function updateThemeIcon(theme) {
+    const icon = elements.themeIcon;
+
+    if (theme === 'dark') {
+        // Moon icon
+        icon.innerHTML = '<path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>';
+    } else if (theme === 'light') {
+        // Sun icon
+        icon.innerHTML = '<path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/>';
+    } else {
+        // Auto icon (circle half-filled)
+        icon.innerHTML = '<path d="M8 15A7 7 0 1 0 8 1v14zm0 1A8 8 0 1 1 8 0a8 8 0 0 1 0 16z"/>';
+    }
+}
+
+function toggleTheme() {
+    const current = getThemePreference();
+    let next;
+
+    // Cycle through: auto -> light -> dark -> auto
+    if (current === 'auto') {
+        next = 'light';
+    } else if (current === 'light') {
+        next = 'dark';
+    } else {
+        next = 'auto';
+    }
+
+    setThemePreference(next);
+}
+
+// Initialize theme on load
 window.addEventListener('DOMContentLoaded', () => {
     console.log('Database Editor loaded');
+
+    // Apply saved theme preference
+    const savedTheme = getThemePreference();
+    applyTheme(savedTheme);
+
+    // Add theme toggle listener
+    elements.themeToggle.addEventListener('click', toggleTheme);
+
+    // Add filter listeners
+    elements.notesCategoryFilter.addEventListener('change', refreshNotesList);
+    elements.notesSortBy.addEventListener('change', refreshNotesList);
 });
