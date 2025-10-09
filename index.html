@@ -8,7 +8,10 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.1/umd/index.js"></script>
+    <script type="module">
+        import * as fflate from './fflate.js';
+        window.fflate = fflate;
+    </script>
 </head>
 <body>
     <!-- Header -->
@@ -186,6 +189,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js" defer></script>
 </body>
 </html>

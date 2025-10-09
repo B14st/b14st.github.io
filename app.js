@@ -203,27 +203,42 @@ async function handleFileLoad(event) {
 
             const unzipped = await unzipToolpack(arrayBuffer);
 
-            // Check for required files
-            if (!unzipped['library.sqlite']) {
+            // Debug: log all files in the archive
+            console.log('Files in .toolpack:', Object.keys(unzipped));
+
+            // Find the base directory (handle UUID prefix from iOS)
+            let baseDir = '';
+            const firstKey = Object.keys(unzipped)[0];
+            if (firstKey && firstKey.includes('/')) {
+                baseDir = firstKey.split('/')[0] + '/';
+            }
+            console.log('Base directory:', baseDir || '(root)');
+
+            // Check for required files (with or without base directory)
+            const libraryPath = baseDir + 'library.sqlite';
+            const manifestPath = baseDir + 'manifest.json';
+
+            if (!unzipped[libraryPath]) {
                 throw new Error('Invalid .toolpack: missing library.sqlite');
             }
 
-            if (!unzipped['manifest.json']) {
+            if (!unzipped[manifestPath]) {
                 throw new Error('Invalid .toolpack: missing manifest.json');
             }
 
             // Parse manifest
-            const manifestText = new TextDecoder().decode(unzipped['manifest.json']);
+            const manifestText = new TextDecoder().decode(unzipped[manifestPath]);
             const manifest = JSON.parse(manifestText);
             console.log('Manifest:', manifest);
 
             // Load database
-            db = new SQL.Database(unzipped['library.sqlite']);
+            db = new SQL.Database(unzipped[libraryPath]);
 
             // Load attachments into memory
+            const attachmentsPrefix = baseDir + 'attachments/';
             for (const [path, data] of Object.entries(unzipped)) {
-                if (path.startsWith('attachments/')) {
-                    const relativePath = path.replace('attachments/', '');
+                if (path.startsWith(attachmentsPrefix)) {
+                    const relativePath = path.replace(attachmentsPrefix, '');
                     attachments.set(relativePath, data);
                     console.log('Loaded attachment:', relativePath);
                 }
@@ -242,6 +257,16 @@ async function handleFileLoad(event) {
 
         // Verify database structure
         verifyDatabaseStructure();
+
+        // Debug: Check row counts
+        try {
+            const notesCount = db.exec("SELECT COUNT(*) as count FROM ZINFOITEM")[0].values[0][0];
+            const categoriesCount = db.exec("SELECT COUNT(*) as count FROM ZINFOCATEGORY")[0].values[0][0];
+            const productsCount = db.exec("SELECT COUNT(*) as count FROM ZPRODUCTDOC")[0].values[0][0];
+            console.log(`Database row counts - Notes: ${notesCount}, Categories: ${categoriesCount}, Products: ${productsCount}`);
+        } catch (e) {
+            console.error('Error checking row counts:', e);
+        }
 
         // Update UI
         elements.welcomeScreen.style.display = 'none';
@@ -786,7 +811,7 @@ function closeNoteEditor() {
     });
 }
 
-function saveNoteFromEditor() {
+async function saveNoteFromEditor() {
     const title = document.getElementById('noteTitle').value.trim();
     const content = noteEditor ? noteEditor.value().trim() : '';
     const categoryId = document.getElementById('noteCategory').value;
@@ -1328,7 +1353,7 @@ function closeProductEditor() {
     });
 }
 
-function saveProductFromEditor() {
+async function saveProductFromEditor() {
     const name = document.getElementById('productName').value.trim();
     const manufacturer = document.getElementById('productManufacturer').value.trim();
     const specifications = productSpecsEditor ? productSpecsEditor.value().trim() : '';
