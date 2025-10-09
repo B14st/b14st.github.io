@@ -2,6 +2,8 @@
 let db = null;
 let SQL = null;
 let currentFileName = '';
+let attachments = new Map(); // Store attachments in memory: path -> Uint8Array
+let isToolpack = false; // Track if loaded file is .toolpack
 
 // Initialize SQL.js
 async function initSQL() {
@@ -80,6 +82,98 @@ function switchTab(tabName) {
     document.getElementById(`${tabName}Tab`).classList.add('active');
 }
 
+// ===== UTILITY FUNCTIONS =====
+
+// ZIP Utilities
+async function unzipToolpack(arrayBuffer) {
+    return new Promise((resolve, reject) => {
+        try {
+            const uint8 = new Uint8Array(arrayBuffer);
+            fflate.unzip(uint8, (err, unzipped) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve(unzipped);
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+async function createToolpackZip(dbData, attachmentsMap, libraryName) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Create manifest
+            const manifest = {
+                version: "1.0",
+                libraryId: crypto.randomUUID(),
+                schemaVersion: 1,
+                createdAt: new Date().toISOString()
+            };
+
+            const files = {
+                'manifest.json': new TextEncoder().encode(JSON.stringify(manifest, null, 2)),
+                'library.sqlite': dbData
+            };
+
+            // Add attachments
+            for (const [path, data] of attachmentsMap.entries()) {
+                files[`attachments/${path}`] = data;
+            }
+
+            fflate.zip(files, (err, zipped) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve(zipped);
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Hash Utilities
+async function calculateSHA256(arrayBuffer) {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Attachment Management
+async function saveAttachment(pdfData, fileName) {
+    // Calculate hash
+    const hash = await calculateSHA256(pdfData);
+
+    // Create path: first2chars/fullhash.ext
+    const first2 = hash.substring(0, 2);
+    const ext = fileName.split('.').pop() || 'pdf';
+    const relativePath = `${first2}/${hash}.${ext}`;
+
+    // Store in memory
+    attachments.set(relativePath, new Uint8Array(pdfData));
+
+    // Return metadata
+    return {
+        fileName: fileName,
+        mimeType: 'application/pdf',
+        size: pdfData.byteLength,
+        hash: hash,
+        relativePath: relativePath
+    };
+}
+
+function getAttachment(relativePath) {
+    return attachments.get(relativePath);
+}
+
+function deleteAttachment(relativePath) {
+    attachments.delete(relativePath);
+}
+
 // File handling
 async function handleFileLoad(event) {
     const file = event.target.files[0];
@@ -88,40 +182,79 @@ async function handleFileLoad(event) {
     console.log('Loading file:', file.name);
     currentFileName = file.name;
 
-    try {
-        console.log('Reading file as array buffer...');
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        console.log('File size:', uint8Array.length, 'bytes');
+    // Clear previous attachments
+    attachments.clear();
+    isToolpack = false;
 
-        console.log('Initializing SQL.js...');
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+
         if (!SQL) {
             await initSQL();
         }
 
-        console.log('Creating database from file...');
-        db = new SQL.Database(uint8Array);
+        // Check file extension
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (ext === 'toolpack') {
+            // Load .toolpack format
+            isToolpack = true;
+            console.log('Loading .toolpack file...');
+
+            const unzipped = await unzipToolpack(arrayBuffer);
+
+            // Check for required files
+            if (!unzipped['library.sqlite']) {
+                throw new Error('Invalid .toolpack: missing library.sqlite');
+            }
+
+            if (!unzipped['manifest.json']) {
+                throw new Error('Invalid .toolpack: missing manifest.json');
+            }
+
+            // Parse manifest
+            const manifestText = new TextDecoder().decode(unzipped['manifest.json']);
+            const manifest = JSON.parse(manifestText);
+            console.log('Manifest:', manifest);
+
+            // Load database
+            db = new SQL.Database(unzipped['library.sqlite']);
+
+            // Load attachments into memory
+            for (const [path, data] of Object.entries(unzipped)) {
+                if (path.startsWith('attachments/')) {
+                    const relativePath = path.replace('attachments/', '');
+                    attachments.set(relativePath, data);
+                    console.log('Loaded attachment:', relativePath);
+                }
+            }
+
+            console.log('Loaded', attachments.size, 'attachments');
+
+        } else {
+            // Load legacy .sqlite format
+            console.log('Loading .sqlite file...');
+            const uint8Array = new Uint8Array(arrayBuffer);
+            db = new SQL.Database(uint8Array);
+        }
+
         console.log('Database loaded successfully');
 
         // Verify database structure
-        console.log('Verifying database structure...');
         verifyDatabaseStructure();
 
         // Update UI
-        console.log('Updating UI...');
         elements.welcomeScreen.style.display = 'none';
         elements.appContent.style.display = 'block';
         elements.downloadBtn.disabled = false;
-        elements.dbName.textContent = currentFileName;
+        elements.dbName.textContent = file.name;
 
         // Load data
-        console.log('Loading data...');
         loadAllData();
         console.log('All data loaded successfully');
     } catch (error) {
         console.error('Error loading database:', error);
-        console.error('Error stack:', error.stack);
-        alert('Error loading database: ' + error.message + '\n\nCheck the browser console for details.');
+        alert('Error loading database: ' + error.message);
     }
 
     // Reset file input
@@ -214,26 +347,41 @@ function createMissingTables(missingTables) {
 }
 
 // Download database
-function downloadDatabase() {
+async function downloadDatabase() {
     if (!db) return;
 
     try {
-        // Verify database integrity before export
-        console.log('Exporting database...');
-        const data = db.export();
-        console.log('Database exported successfully, size:', data.length, 'bytes');
+        let blob;
+        let filename;
 
-        const blob = new Blob([data], { type: 'application/x-sqlite3' });
+        if (isToolpack) {
+            // Export as .toolpack
+            console.log('Exporting as .toolpack...');
+            const dbData = db.export();
+            const zipped = await createToolpackZip(dbData, attachments, currentFileName);
+            blob = new Blob([zipped], { type: 'application/zip' });
+            filename = currentFileName.replace(/\.(toolpack|sqlite)$/, '') + '.toolpack';
+        } else {
+            // Export as .sqlite for backward compatibility
+            console.log('Exporting as .sqlite...');
+            const data = db.export();
+            blob = new Blob([data], { type: 'application/x-sqlite3' });
+            filename = currentFileName.replace(/\.(toolpack|sqlite)$/, '') + '.sqlite';
+        }
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = currentFileName || 'database.sqlite';
+        a.download = filename;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        console.log('Database download complete');
+
+        console.log('Database downloaded:', filename);
     } catch (error) {
-        console.error('Error exporting database:', error);
-        alert('Error exporting database: ' + error.message);
+        console.error('Error downloading database:', error);
+        alert('Error downloading database: ' + error.message);
     }
 }
 
@@ -425,7 +573,9 @@ function loadNotes() {
     }
 
     const stmt = db.prepare(`
-        SELECT n.Z_PK, n.ZTITLE, n.ZCONTENT, n.ZVIEWCOUNT, n.ZCATEGORY, n.ZPDFDATABASE64, n.ZPDFFILENAME, c.ZNAME as CATEGORYNAME
+        SELECT n.Z_PK, n.ZTITLE, n.ZCONTENT, n.ZVIEWCOUNT, n.ZCATEGORY,
+               n.ZPDFFILENAME, n.ZPDFMIMETYPE, n.ZPDFSIZE, n.ZPDFHASH, n.ZPDFRELATIVEPATH,
+               c.ZNAME as CATEGORYNAME
         FROM ZINFOITEM n
         LEFT JOIN ZINFOCATEGORY c ON n.ZCATEGORY = c.Z_PK
         ORDER BY n.Z_PK DESC
@@ -434,15 +584,6 @@ function loadNotes() {
     const notes = [];
     while (stmt.step()) {
         const row = stmt.getAsObject();
-        // Decode Base64 PDF data if present
-        let pdfData = null;
-        if (row.ZPDFDATABASE64) {
-            try {
-                pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
-            } catch (e) {
-                console.error('Error decoding PDF Base64:', e);
-            }
-        }
         notes.push({
             id: row.Z_PK,
             title: row.ZTITLE || '',
@@ -450,8 +591,11 @@ function loadNotes() {
             viewCount: row.ZVIEWCOUNT || 0,
             categoryId: row.ZCATEGORY,
             categoryName: row.CATEGORYNAME || 'Uncategorized',
-            pdfData: pdfData,
-            pdfFileName: row.ZPDFFILENAME
+            pdfFileName: row.ZPDFFILENAME,
+            pdfMimeType: row.ZPDFMIMETYPE,
+            pdfSize: row.ZPDFSIZE,
+            pdfHash: row.ZPDFHASH,
+            pdfRelativePath: row.ZPDFRELATIVEPATH
         });
     }
     stmt.free();
@@ -503,22 +647,16 @@ function openNoteEditor(id = null) {
         stmt.bind([id]);
         if (stmt.step()) {
             const row = stmt.getAsObject();
-            // Decode Base64 PDF data if present
-            let pdfData = null;
-            if (row.ZPDFDATABASE64) {
-                try {
-                    pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
-                } catch (e) {
-                    console.error('Error decoding PDF Base64:', e);
-                }
-            }
             note = {
                 id: row.Z_PK,
                 title: row.ZTITLE || '',
                 content: row.ZCONTENT || '',
                 categoryId: row.ZCATEGORY,
-                pdfData: pdfData,
-                pdfFileName: row.ZPDFFILENAME
+                pdfFileName: row.ZPDFFILENAME,
+                pdfMimeType: row.ZPDFMIMETYPE,
+                pdfSize: row.ZPDFSIZE,
+                pdfHash: row.ZPDFHASH,
+                pdfRelativePath: row.ZPDFRELATIVEPATH
             };
         }
         stmt.free();
@@ -660,37 +798,57 @@ function saveNoteFromEditor() {
 
     const id = currentEditingNote?.id;
 
-    // Handle PDF data - convert to Base64 for cross-platform compatibility
-    let pdfDataBase64 = null;
-    let pdfFileName = null;
+    // Handle PDF with file-based storage
+    let pdfMetadata = null;
 
     if (currentNotePDF) {
-        // New PDF uploaded - convert to Base64
-        pdfDataBase64 = arrayBufferToBase64(currentNotePDF.data);
-        pdfFileName = currentNotePDF.name;
-    } else if (currentEditingNote && !currentEditingNote.pdfRemoved && currentEditingNote.pdfData) {
-        // Keep existing PDF - convert to Base64
-        pdfDataBase64 = arrayBufferToBase64(currentEditingNote.pdfData);
-        pdfFileName = currentEditingNote.pdfFileName;
+        // New PDF uploaded - save to attachments
+        pdfMetadata = await saveAttachment(currentNotePDF.data, currentNotePDF.name);
+    } else if (currentEditingNote && !currentEditingNote.pdfRemoved && currentEditingNote.pdfRelativePath) {
+        // Keep existing PDF metadata
+        pdfMetadata = {
+            fileName: currentEditingNote.pdfFileName,
+            mimeType: currentEditingNote.pdfMimeType,
+            size: currentEditingNote.pdfSize,
+            hash: currentEditingNote.pdfHash,
+            relativePath: currentEditingNote.pdfRelativePath
+        };
     }
 
     try {
         if (id) {
             // Update existing
-            db.run(`
-                UPDATE ZINFOITEM
-                SET ZTITLE = ?, ZCONTENT = ?, ZCATEGORY = ?, ZPDFDATABASE64 = ?, ZPDFFILENAME = ?
-                WHERE Z_PK = ?
-            `, [title, content, categoryId || null, pdfDataBase64, pdfFileName, id]);
-            console.log('Note updated successfully, PDF:', pdfFileName ? 'Yes' : 'No');
+            if (pdfMetadata) {
+                db.run(`
+                    UPDATE ZINFOITEM
+                    SET ZTITLE = ?, ZCONTENT = ?, ZCATEGORY = ?,
+                        ZPDFFILENAME = ?, ZPDFMIMETYPE = ?, ZPDFSIZE = ?, ZPDFHASH = ?, ZPDFRELATIVEPATH = ?
+                    WHERE Z_PK = ?
+                `, [title, content, categoryId || null,
+                    pdfMetadata.fileName, pdfMetadata.mimeType, pdfMetadata.size,
+                    pdfMetadata.hash, pdfMetadata.relativePath, id]);
+            } else {
+                // Removing PDF or no PDF
+                db.run(`
+                    UPDATE ZINFOITEM
+                    SET ZTITLE = ?, ZCONTENT = ?, ZCATEGORY = ?,
+                        ZPDFFILENAME = NULL, ZPDFMIMETYPE = NULL, ZPDFSIZE = NULL, ZPDFHASH = NULL, ZPDFRELATIVEPATH = NULL
+                    WHERE Z_PK = ?
+                `, [title, content, categoryId || null, id]);
+            }
+            console.log('Note updated successfully, PDF:', pdfMetadata ? 'Yes' : 'No');
         } else {
             // Insert new
             const maxId = getMaxId('ZINFOITEM');
             db.run(`
-                INSERT INTO ZINFOITEM (Z_PK, Z_ENT, Z_OPT, ZTITLE, ZCONTENT, ZCATEGORY, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [maxId + 1, 2, 1, title, content, categoryId || null, 0, pdfDataBase64, pdfFileName]);
-            console.log('Note inserted successfully, PDF:', pdfFileName ? 'Yes' : 'No');
+                INSERT INTO ZINFOITEM (Z_PK, Z_ENT, Z_OPT, ZTITLE, ZCONTENT, ZCATEGORY, ZVIEWCOUNT,
+                                      ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [maxId + 1, 2, 1, title, content, categoryId || null, 0,
+                pdfMetadata?.fileName || null, pdfMetadata?.mimeType || null,
+                pdfMetadata?.size || null, pdfMetadata?.hash || null,
+                pdfMetadata?.relativePath || null]);
+            console.log('Note inserted successfully, PDF:', pdfMetadata ? 'Yes' : 'No');
         }
 
         // Verify the save worked
@@ -740,8 +898,14 @@ async function handleNotePDFUpload(event) {
 }
 
 function viewNotePDF() {
-    const pdfData = currentEditingNote?.pdfData;
-    if (!pdfData) return;
+    const relativePath = currentEditingNote?.pdfRelativePath;
+    if (!relativePath) return;
+
+    const pdfData = getAttachment(relativePath);
+    if (!pdfData) {
+        alert('PDF file not found');
+        return;
+    }
 
     const blob = new Blob([pdfData], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -749,9 +913,15 @@ function viewNotePDF() {
 }
 
 function downloadNotePDF() {
-    const pdfData = currentEditingNote?.pdfData;
+    const relativePath = currentEditingNote?.pdfRelativePath;
     const pdfFileName = currentEditingNote?.pdfFileName || 'document.pdf';
-    if (!pdfData) return;
+    if (!relativePath) return;
+
+    const pdfData = getAttachment(relativePath);
+    if (!pdfData) {
+        alert('PDF file not found');
+        return;
+    }
 
     const blob = new Blob([pdfData], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -811,8 +981,14 @@ async function handleProductPDFUpload(event) {
 }
 
 function viewProductPDF() {
-    const pdfData = currentEditingProduct?.pdfData;
-    if (!pdfData) return;
+    const relativePath = currentEditingProduct?.pdfRelativePath;
+    if (!relativePath) return;
+
+    const pdfData = getAttachment(relativePath);
+    if (!pdfData) {
+        alert('PDF file not found');
+        return;
+    }
 
     const blob = new Blob([pdfData], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -820,9 +996,15 @@ function viewProductPDF() {
 }
 
 function downloadProductPDF() {
-    const pdfData = currentEditingProduct?.pdfData;
+    const relativePath = currentEditingProduct?.pdfRelativePath;
     const pdfFileName = currentEditingProduct?.pdfFileName || 'document.pdf';
-    if (!pdfData) return;
+    if (!relativePath) return;
+
+    const pdfData = getAttachment(relativePath);
+    if (!pdfData) {
+        alert('PDF file not found');
+        return;
+    }
 
     const blob = new Blob([pdfData], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -928,7 +1110,8 @@ function loadProducts() {
     }
 
     const stmt = db.prepare(`
-        SELECT Z_PK, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME
+        SELECT Z_PK, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT,
+               ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH
         FROM ZPRODUCTDOC
         ORDER BY Z_PK DESC
     `);
@@ -936,15 +1119,6 @@ function loadProducts() {
     const products = [];
     while (stmt.step()) {
         const row = stmt.getAsObject();
-        // Decode Base64 PDF data if present
-        let pdfData = null;
-        if (row.ZPDFDATABASE64) {
-            try {
-                pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
-            } catch (e) {
-                console.error('Error decoding PDF Base64:', e);
-            }
-        }
         products.push({
             id: row.Z_PK,
             name: row.ZPRODUCTNAME || '',
@@ -952,8 +1126,11 @@ function loadProducts() {
             specifications: row.ZSPECIFICATIONS || '',
             installationNotes: row.ZINSTALLATIONNOTES || '',
             viewCount: row.ZVIEWCOUNT || 0,
-            pdfData: pdfData,
-            pdfFileName: row.ZPDFFILENAME
+            pdfFileName: row.ZPDFFILENAME,
+            pdfMimeType: row.ZPDFMIMETYPE,
+            pdfSize: row.ZPDFSIZE,
+            pdfHash: row.ZPDFHASH,
+            pdfRelativePath: row.ZPDFRELATIVEPATH
         });
     }
     stmt.free();
@@ -1005,23 +1182,17 @@ function openProductEditor(id = null) {
         stmt.bind([id]);
         if (stmt.step()) {
             const row = stmt.getAsObject();
-            // Decode Base64 PDF data if present
-            let pdfData = null;
-            if (row.ZPDFDATABASE64) {
-                try {
-                    pdfData = base64ToArrayBuffer(row.ZPDFDATABASE64);
-                } catch (e) {
-                    console.error('Error decoding PDF Base64:', e);
-                }
-            }
             product = {
                 id: row.Z_PK,
                 name: row.ZPRODUCTNAME || '',
                 manufacturer: row.ZMANUFACTURER || '',
                 specifications: row.ZSPECIFICATIONS || '',
                 installationNotes: row.ZINSTALLATIONNOTES || '',
-                pdfData: pdfData,
-                pdfFileName: row.ZPDFFILENAME
+                pdfFileName: row.ZPDFFILENAME,
+                pdfMimeType: row.ZPDFMIMETYPE,
+                pdfSize: row.ZPDFSIZE,
+                pdfHash: row.ZPDFHASH,
+                pdfRelativePath: row.ZPDFRELATIVEPATH
             };
         }
         stmt.free();
@@ -1170,34 +1341,53 @@ function saveProductFromEditor() {
 
     const id = currentEditingProduct?.id;
 
-    // Handle PDF data - convert to Base64 for cross-platform compatibility
-    let pdfDataBase64 = null;
-    let pdfFileName = null;
+    // Handle PDF with file-based storage
+    let pdfMetadata = null;
 
     if (currentProductPDF) {
-        // New PDF uploaded - convert to Base64
-        pdfDataBase64 = arrayBufferToBase64(currentProductPDF.data);
-        pdfFileName = currentProductPDF.name;
-    } else if (currentEditingProduct && !currentEditingProduct.pdfRemoved && currentEditingProduct.pdfData) {
-        // Keep existing PDF - convert to Base64
-        pdfDataBase64 = arrayBufferToBase64(currentEditingProduct.pdfData);
-        pdfFileName = currentEditingProduct.pdfFileName;
+        // New PDF uploaded - save to attachments
+        pdfMetadata = await saveAttachment(currentProductPDF.data, currentProductPDF.name);
+    } else if (currentEditingProduct && !currentEditingProduct.pdfRemoved && currentEditingProduct.pdfRelativePath) {
+        // Keep existing PDF metadata
+        pdfMetadata = {
+            fileName: currentEditingProduct.pdfFileName,
+            mimeType: currentEditingProduct.pdfMimeType,
+            size: currentEditingProduct.pdfSize,
+            hash: currentEditingProduct.pdfHash,
+            relativePath: currentEditingProduct.pdfRelativePath
+        };
     }
 
     if (id) {
         // Update existing
-        db.run(`
-            UPDATE ZPRODUCTDOC
-            SET ZPRODUCTNAME = ?, ZMANUFACTURER = ?, ZSPECIFICATIONS = ?, ZINSTALLATIONNOTES = ?, ZPDFDATABASE64 = ?, ZPDFFILENAME = ?
-            WHERE Z_PK = ?
-        `, [name, manufacturer, specifications, installationNotes, pdfDataBase64, pdfFileName, id]);
+        if (pdfMetadata) {
+            db.run(`
+                UPDATE ZPRODUCTDOC
+                SET ZPRODUCTNAME = ?, ZMANUFACTURER = ?, ZSPECIFICATIONS = ?, ZINSTALLATIONNOTES = ?,
+                    ZPDFFILENAME = ?, ZPDFMIMETYPE = ?, ZPDFSIZE = ?, ZPDFHASH = ?, ZPDFRELATIVEPATH = ?
+                WHERE Z_PK = ?
+            `, [name, manufacturer, specifications, installationNotes,
+                pdfMetadata.fileName, pdfMetadata.mimeType, pdfMetadata.size,
+                pdfMetadata.hash, pdfMetadata.relativePath, id]);
+        } else {
+            db.run(`
+                UPDATE ZPRODUCTDOC
+                SET ZPRODUCTNAME = ?, ZMANUFACTURER = ?, ZSPECIFICATIONS = ?, ZINSTALLATIONNOTES = ?,
+                    ZPDFFILENAME = NULL, ZPDFMIMETYPE = NULL, ZPDFSIZE = NULL, ZPDFHASH = NULL, ZPDFRELATIVEPATH = NULL
+                WHERE Z_PK = ?
+            `, [name, manufacturer, specifications, installationNotes, id]);
+        }
     } else {
         // Insert new
         const maxId = getMaxId('ZPRODUCTDOC');
         db.run(`
-            INSERT INTO ZPRODUCTDOC (Z_PK, Z_ENT, Z_OPT, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [maxId + 1, 3, 1, name, manufacturer, specifications, installationNotes, 0, pdfDataBase64, pdfFileName]);
+            INSERT INTO ZPRODUCTDOC (Z_PK, Z_ENT, Z_OPT, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT,
+                                    ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [maxId + 1, 3, 1, name, manufacturer, specifications, installationNotes, 0,
+            pdfMetadata?.fileName || null, pdfMetadata?.mimeType || null,
+            pdfMetadata?.size || null, pdfMetadata?.hash || null,
+            pdfMetadata?.relativePath || null]);
     }
 
     loadProducts();
@@ -1258,25 +1448,7 @@ function openProductModal(id = null) {
 // === UTILITIES ===
 
 // Base64 conversion helpers for PDF data
-function arrayBufferToBase64(buffer) {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
-function base64ToArrayBuffer(base64) {
-    const binary = atob(base64);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-}
+// Base64 functions removed - no longer needed with file-based storage
 
 function getMaxId(tableName) {
     const stmt = db.prepare(`SELECT MAX(Z_PK) as maxId FROM ${tableName}`);
