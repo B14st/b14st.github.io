@@ -395,7 +395,7 @@ function saveCategory(id) {
         db.run(`
             INSERT INTO ZINFOCATEGORY (Z_PK, Z_ENT, Z_OPT, ZNAME, ZICON, ZSORTORDER)
             VALUES (?, ?, ?, ?, ?, ?)
-        `, [maxId + 1, 2, 1, name, icon, sortOrder]);
+        `, [maxId + 1, 1, 1, name, icon, sortOrder]);
     }
 
     closeModal();
@@ -689,7 +689,7 @@ function saveNoteFromEditor() {
             db.run(`
                 INSERT INTO ZINFOITEM (Z_PK, Z_ENT, Z_OPT, ZTITLE, ZCONTENT, ZCATEGORY, ZVIEWCOUNT, ZPDFDATABASE64, ZPDFFILENAME)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [maxId + 1, 1, 1, title, content, categoryId || null, 0, pdfDataBase64, pdfFileName]);
+            `, [maxId + 1, 2, 1, title, content, categoryId || null, 0, pdfDataBase64, pdfFileName]);
             console.log('Note inserted successfully, PDF:', pdfFileName ? 'Yes' : 'No');
         }
 
