@@ -262,6 +262,16 @@ async function handleFileLoad(event) {
         // Verify database structure
         verifyDatabaseStructure();
 
+        // IMPORTANT: Clear any legacy Base64 PDF data to prevent iOS crashes
+        try {
+            console.log('Clearing legacy ZPDFDATABASE64 columns...');
+            db.run('UPDATE ZINFOITEM SET ZPDFDATABASE64 = NULL WHERE ZPDFDATABASE64 IS NOT NULL');
+            db.run('UPDATE ZPRODUCTDOC SET ZPDFDATABASE64 = NULL WHERE ZPDFDATABASE64 IS NOT NULL');
+            console.log('✅ Legacy PDF data cleared');
+        } catch (e) {
+            console.log('Note: Could not clear legacy PDF data (columns may not exist):', e.message);
+        }
+
         // Debug: Check row counts
         try {
             const notesCount = db.exec("SELECT COUNT(*) as count FROM ZINFOITEM")[0].values[0][0];
@@ -649,10 +659,14 @@ function saveCategory(id) {
         // Insert new
         const maxId = getMaxId('ZINFOCATEGORY');
         const now = Date.now() / 1000 - 978307200; // Apple epoch
+
+        // Create UUID BLOB for SwiftData compatibility
+        const uuidBlob = createUUIDBlob();
+
         db.run(`
-            INSERT INTO ZINFOCATEGORY (Z_PK, Z_ENT, Z_OPT, ZNAME, ZICON, ZSORTORDER)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `, [maxId + 1, 1, 1, name, icon, sortOrder]);
+            INSERT INTO ZINFOCATEGORY (Z_PK, Z_ENT, Z_OPT, ZNAME, ZICON, ZSORTORDER, ZID)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [maxId + 1, 1, 1, name, icon, sortOrder, uuidBlob]);
     }
 
     closeModal();
@@ -1036,14 +1050,21 @@ async function saveNoteFromEditor() {
         } else {
             // Insert new
             const maxId = getMaxId('ZINFOITEM');
+
+            // Create required BLOBs for SwiftData compatibility
+            const uuidBlob = createUUIDBlob();
+            const emptyArrayBlob = createEmptyArrayBlob();
+
             db.run(`
                 INSERT INTO ZINFOITEM (Z_PK, Z_ENT, Z_OPT, ZTITLE, ZCONTENT, ZCATEGORY, ZVIEWCOUNT,
-                                      ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH,
+                                      ZID, ZTAGS, ZATTACHMENTURLS)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [maxId + 1, 2, 1, title, content, categoryId || null, 0,
                 pdfMetadata?.fileName || null, pdfMetadata?.mimeType || null,
                 pdfMetadata?.size || null, pdfMetadata?.hash || null,
-                pdfMetadata?.relativePath || null]);
+                pdfMetadata?.relativePath || null,
+                uuidBlob, emptyArrayBlob, emptyArrayBlob]);
             console.log('Note inserted successfully, PDF:', pdfMetadata ? 'Yes' : 'No');
         }
 
@@ -1576,14 +1597,21 @@ async function saveProductFromEditor() {
     } else {
         // Insert new
         const maxId = getMaxId('ZPRODUCTDOC');
+
+        // Create required BLOBs for SwiftData compatibility
+        const uuidBlob = createUUIDBlob();
+        const emptyArrayBlob = createEmptyArrayBlob();
+
         db.run(`
             INSERT INTO ZPRODUCTDOC (Z_PK, Z_ENT, Z_OPT, ZPRODUCTNAME, ZMANUFACTURER, ZSPECIFICATIONS, ZINSTALLATIONNOTES, ZVIEWCOUNT,
-                                    ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ZPDFFILENAME, ZPDFMIMETYPE, ZPDFSIZE, ZPDFHASH, ZPDFRELATIVEPATH,
+                                    ZID, ZTAGS, ZATTACHMENTURLS)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [maxId + 1, 3, 1, name, manufacturer, specifications, installationNotes, 0,
             pdfMetadata?.fileName || null, pdfMetadata?.mimeType || null,
             pdfMetadata?.size || null, pdfMetadata?.hash || null,
-            pdfMetadata?.relativePath || null]);
+            pdfMetadata?.relativePath || null,
+            uuidBlob, emptyArrayBlob, emptyArrayBlob]);
     }
 
     loadProducts();
@@ -1652,6 +1680,25 @@ function getMaxId(tableName) {
     const result = stmt.getAsObject();
     stmt.free();
     return result.maxId || 0;
+}
+
+// Helper functions for creating NSKeyedArchiver-compatible BLOBs
+
+function createEmptyArrayBlob() {
+    // This is the hex representation of an NSKeyedArchiver empty array
+    const hexString = '62706C6973743030D4010203040506070A582476657273696F6E592461726368697665725424746F7058246F626A6563747312000186A05F100F4E534B657965644172636869766572D1080954726F6F748001A20B0C55246E756C6C425B5D08111A24293237494C5153565C0000000000000101000000000000000D0000000000000000000000000000005F';
+    const bytes = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    return bytes;
+}
+
+function createUUIDBlob() {
+    // Generate a random UUID and encode it as a BLOB
+    // Format: 16 bytes representing UUID
+    const uuid = crypto.randomUUID();
+    const parts = uuid.split('-');
+    const hex = parts.join('');
+    const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    return bytes;
 }
 
 function openModal() {
