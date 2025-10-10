@@ -21,6 +21,7 @@ const elements = {
     fileInput: document.getElementById('fileInput'),
     loadBtn: document.getElementById('loadBtn'),
     welcomeLoadBtn: document.getElementById('welcomeLoadBtn'),
+    createNewBtn: document.getElementById('createNewBtn'),
     downloadBtn: document.getElementById('downloadBtn'),
     dbName: document.getElementById('dbName'),
     welcomeScreen: document.getElementById('welcomeScreen'),
@@ -57,6 +58,7 @@ let currentProductPDF = null; // Store PDF file for product upload
 // Event Listeners
 elements.loadBtn.addEventListener('click', () => elements.fileInput.click());
 elements.welcomeLoadBtn.addEventListener('click', () => elements.fileInput.click());
+elements.createNewBtn.addEventListener('click', createNewDatabase);
 elements.fileInput.addEventListener('change', handleFileLoad);
 elements.downloadBtn.addEventListener('click', downloadDatabase);
 elements.modalClose.addEventListener('click', closeModal);
@@ -298,6 +300,132 @@ async function handleFileLoad(event) {
 
     // Reset file input
     event.target.value = '';
+}
+
+// Create a new empty database
+async function createNewDatabase() {
+    try {
+        if (!SQL) {
+            await initSQL();
+        }
+
+        console.log('Creating new empty database...');
+
+        // Create a new empty database
+        db = new SQL.Database();
+        currentFileName = 'NewDatabase.toolpack';
+        isToolpack = true;
+        attachments = new Map();
+
+        // Create all required tables with proper schema
+        console.log('Creating ZINFOCATEGORY table...');
+        db.run(`
+            CREATE TABLE ZINFOCATEGORY (
+                Z_PK INTEGER PRIMARY KEY,
+                Z_ENT INTEGER,
+                Z_OPT INTEGER,
+                ZNAME VARCHAR,
+                ZICON VARCHAR,
+                ZSORTORDER INTEGER,
+                ZID BLOB
+            )
+        `);
+
+        console.log('Creating ZINFOITEM table...');
+        db.run(`
+            CREATE TABLE ZINFOITEM (
+                Z_PK INTEGER PRIMARY KEY,
+                Z_ENT INTEGER,
+                Z_OPT INTEGER,
+                ZPDFSIZE INTEGER,
+                ZVIEWCOUNT INTEGER,
+                ZCATEGORY INTEGER,
+                ZLASTVIEWEDDATE TIMESTAMP,
+                ZCONTENT VARCHAR,
+                ZPDFFILENAME VARCHAR,
+                ZPDFHASH VARCHAR,
+                ZPDFMIMETYPE VARCHAR,
+                ZPDFRELATIVEPATH VARCHAR,
+                ZTITLE VARCHAR,
+                ZID BLOB,
+                ZATTACHMENTURLS BLOB,
+                ZTAGS BLOB,
+                ZIMAGEDATA BLOB
+            )
+        `);
+
+        console.log('Creating ZPRODUCTDOC table...');
+        db.run(`
+            CREATE TABLE ZPRODUCTDOC (
+                Z_PK INTEGER PRIMARY KEY,
+                Z_ENT INTEGER,
+                Z_OPT INTEGER,
+                ZPDFSIZE INTEGER,
+                ZVIEWCOUNT INTEGER,
+                ZLASTVIEWEDDATE TIMESTAMP,
+                ZINSTALLATIONNOTES VARCHAR,
+                ZMANUFACTURER VARCHAR,
+                ZPDFFILENAME VARCHAR,
+                ZPDFHASH VARCHAR,
+                ZPDFMIMETYPE VARCHAR,
+                ZPDFPATH VARCHAR,
+                ZPDFRELATIVEPATH VARCHAR,
+                ZPRODUCTNAME VARCHAR,
+                ZSPECIFICATIONS VARCHAR,
+                ZID BLOB,
+                ZATTACHMENTURLS BLOB,
+                ZTAGS BLOB,
+                ZIMAGEDATA BLOB
+            )
+        `);
+
+        console.log('Creating Z_PRIMARYKEY table...');
+        db.run(`
+            CREATE TABLE Z_PRIMARYKEY (
+                Z_ENT INTEGER PRIMARY KEY,
+                Z_NAME VARCHAR,
+                Z_SUPER INTEGER,
+                Z_MAX INTEGER
+            )
+        `);
+
+        // Insert entity definitions
+        db.run(`INSERT INTO Z_PRIMARYKEY (Z_ENT, Z_NAME, Z_SUPER, Z_MAX) VALUES (1, 'InfoCategory', 0, 0)`);
+        db.run(`INSERT INTO Z_PRIMARYKEY (Z_ENT, Z_NAME, Z_SUPER, Z_MAX) VALUES (2, 'InfoItem', 0, 0)`);
+        db.run(`INSERT INTO Z_PRIMARYKEY (Z_ENT, Z_NAME, Z_SUPER, Z_MAX) VALUES (3, 'ProductDoc', 0, 0)`);
+
+        console.log('Creating Z_METADATA table...');
+        db.run(`
+            CREATE TABLE Z_METADATA (
+                Z_VERSION INTEGER,
+                Z_UUID VARCHAR(255),
+                Z_PLIST BLOB
+            )
+        `);
+
+        console.log('Creating Z_MODELCACHE table...');
+        db.run(`
+            CREATE TABLE Z_MODELCACHE (
+                Z_CONTENT BLOB
+            )
+        `);
+
+        console.log('✅ New database created successfully');
+
+        // Update UI
+        elements.welcomeScreen.style.display = 'none';
+        elements.appContent.style.display = 'block';
+        elements.downloadBtn.disabled = false;
+        elements.dbName.textContent = currentFileName;
+
+        // Load empty data
+        loadAllData();
+
+        console.log('New database ready to use');
+    } catch (error) {
+        console.error('Error creating new database:', error);
+        alert('Error creating new database: ' + error.message);
+    }
 }
 
 function verifyDatabaseStructure() {
