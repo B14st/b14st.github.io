@@ -83,7 +83,8 @@ function searchNode(nodeId) {
   const node = state.map?.nodes.find(n => n.id === nodeId);
   if (!node || node.status !== 'compromised' || node.searched) return;
 
-  node.searched = true;
+  node.searched   = true;
+  node.searchedAt = Date.now();
   const count = Math.random() < 0.08 ? 2 : 1;
   const items = Array.from({ length: count }, () => _rollLootItem(node));
   node.lootFound = items;
@@ -160,6 +161,7 @@ setInterval(() => {
   for (const hash of state.inventory.hashes) {
     if (hash.status === 'cracking' && hash.cracksAt && now >= hash.cracksAt) {
       hash.status = 'done';
+      state.totalHashesCracked = (state.totalHashesCracked || 0) + 1;
       changed = true;
     }
   }

@@ -899,6 +899,7 @@ html, body {
 .tag-green  { color: var(--green);  background: var(--green-dim);  }
 .tag-muted  { color: var(--text-muted); background: var(--surface-3); }
 .tag-accent { color: var(--accent); background: var(--accent-dim);  }
+.tag-red    { color: var(--red);    background: rgba(248,113,113,0.12); }
 
 /* ── Detail Pane ── */
 .msg-detail-pane {
@@ -1069,6 +1070,7 @@ html, body {
 
 .email-meta-val.green  { color: var(--green); font-weight: 600; }
 .email-meta-val.expiry { color: var(--orange); }
+.email-meta-val.warn   { color: var(--red); }
 
 .email-progress {
   display: flex;

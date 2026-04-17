@@ -156,6 +156,15 @@ function toggleBleed(nodeId) {
   renderCards();
 }
 
+function disruptNode(nodeId) {
+  const node = state.map?.nodes.find(n => n.id === nodeId);
+  if (!node || node.status !== 'compromised' || node.type === 'home') return;
+  node.status   = 'disrupted';
+  node.borrowing = false;
+  node.bleeding  = false;
+  renderCards();
+}
+
 // ── Exposure ──────────────────────────────────────────────
 
 function getExposureGainRate() {

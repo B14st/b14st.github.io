@@ -47,9 +47,10 @@ function selectProgram(id) {
 }
 
 function _getHashCrackerVersion() {
-  if (state.scripts['hash_cracker_v3']) return { id: 'hash_cracker_v3', name: 'Hash Cracker v3' };
-  if (state.scripts['hash_cracker_v2']) return { id: 'hash_cracker_v2', name: 'Hash Cracker v2' };
-  if (state.scripts['hash_cracker'])    return { id: 'hash_cracker',    name: 'Hash Cracker'    };
+  if (state.scripts['hash_cracker_v3'])    return { id: 'hash_cracker_v3',    name: 'Hash Cracker v3'    };
+  if (state.scripts['hash_cracker_v2'])    return { id: 'hash_cracker_v2',    name: 'Hash Cracker v2'    };
+  if (state.scripts['hash_cracker'])       return { id: 'hash_cracker',       name: 'Hash Cracker'       };
+  if (state.scripts['hash_cracker_basic']) return { id: 'hash_cracker_basic', name: 'Hash Cracker Basic' };
   return null;
 }
 

@@ -1,6 +1,7 @@
 let activeView = 'dashboard';
 let selectedMessageId = null;
 let _bmTab = 'buy';
+let _bmFilter = 'all';
 
 const RARITY_COLORS = {
   common:    'var(--text-secondary)',
@@ -426,6 +427,11 @@ const SCRIPT_ICONS = {
     <path d="M3.6 9h16.8M3.6 15h16.8"/>
     <path d="M12 3c-2.5 3-4 5.7-4 9s1.5 6 4 9M12 3c2.5 3 4 5.7 4 9s-1.5 6-4 9"/>
   </svg>`,
+  stealth: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+    <path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9z"/>
+    <path d="M12 8v4l3 3"/>
+    <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
+  </svg>`,
 };
 
 const STAT_LABELS = {
@@ -435,6 +441,11 @@ const STAT_LABELS = {
 
 function setBMTab(tab) {
   _bmTab = tab;
+  renderBlackMarketView();
+}
+
+function setBMFilter(filter) {
+  _bmFilter = filter;
   renderBlackMarketView();
 }
 
@@ -492,6 +503,7 @@ function renderBlackMarketView() {
     { key: 'automation', label: 'AUTOMATION TOOLS',  desc: 'Passive income scripts. Run continuously in the background.' },
     { key: 'contract',   label: 'CONTRACT TOOLS',    desc: 'One-time job utilities. Speeds up contract completion time.'  },
     { key: 'network',    label: 'NETWORK TOOLS',     desc: 'Node intrusion and exploitation utilities. Used on the Map.'  },
+    { key: 'stealth',    label: 'STEALTH TOOLS',     desc: 'Traffic masking and evasion suites. Required for ghost operations.' },
   ];
 
   body.innerHTML = `
@@ -511,72 +523,88 @@ function renderBlackMarketView() {
       <button class="bm-tab${_bmTab === 'sell' ? ' active' : ''}" onclick="setBMTab('sell')">SELL</button>
     </div>
 
-    ${_bmTab === 'sell' ? _renderBMSellTab() : categories.map(cat => {
-      const scripts = SCRIPTS.filter(s => s.category === cat.key);
-      if (!scripts.length) return '';
+    ${_bmTab === 'sell' ? _renderBMSellTab() : (() => {
+      const filters = [
+        { key: 'all',        label: 'ALL'        },
+        { key: 'automation', label: 'AUTOMATION' },
+        { key: 'contract',   label: 'CONTRACT'   },
+        { key: 'network',    label: 'NETWORK'    },
+        { key: 'stealth',    label: 'STEALTH'    },
+        { key: 'common',     label: 'COMMON',    rarity: true },
+        { key: 'uncommon',   label: 'UNCOMMON',  rarity: true },
+        { key: 'rare',       label: 'RARE',      rarity: true },
+        { key: 'legendary',  label: 'LEGENDARY', rarity: true },
+      ];
 
-      return `
-        <div class="store-section">
-          <div class="store-section-header">
-            <span class="store-section-icon">${SCRIPT_ICONS[cat.key]}</span>
-            <div>
-              <div class="store-section-name">${cat.label}</div>
-              <div class="store-section-desc">${cat.desc}</div>
-            </div>
+      const visible = SCRIPTS.filter(s => {
+        if (_bmFilter === 'all') return true;
+        const f = filters.find(f => f.key === _bmFilter);
+        if (f?.rarity) return s.rarity === _bmFilter;
+        return s.category === _bmFilter;
+      });
+
+      const filterBar = `
+        <div class="bm-filter-bar">
+          <div class="bm-filter-group">
+            ${filters.filter(f => !f.rarity).map(f => `
+              <button class="bm-filter-btn${_bmFilter === f.key ? ' active' : ''}"
+                onclick="setBMFilter('${f.key}')">${f.label}</button>
+            `).join('')}
           </div>
-          <div class="product-grid bm-grid">
-            ${scripts.map(script => {
-              const owned      = !!state.scripts[script.id];
-              const canAfford  = !owned && state.balance >= script.cost;
-              const rarityColor = RARITY_COLORS[script.rarity] || RARITY_COLORS.common;
-
-              const reqs = [
-                script.cpu ? `<span class="req">CPU ${script.cpu}</span>` : '',
-                script.ram ? `<span class="req">RAM ${script.ram}GB</span>` : '',
-                script.gpu ? `<span class="req">GPU ${script.gpu}GB</span>` : '',
-              ].filter(Boolean).join('');
-
-              const stats = Object.entries(script.stats || {})
-                .map(([k, v]) => STAT_LABELS[k] ? `<span class="stat-badge">${STAT_LABELS[k](v)}</span>` : '')
-                .filter(Boolean).join('');
-
-              return `
-                <div class="product-card bm-card${owned ? ' bm-owned' : ''}">
-                  <div class="bm-card-top">
-                    <div class="bm-icon-wrap rarity-bg-${script.rarity}">
-                      ${SCRIPT_ICONS[script.category]}
-                    </div>
-                    <div class="bm-card-meta">
-                      <div class="bm-filename" style="color:${rarityColor}">${script.filename}</div>
-                      <div class="bm-tags">
-                        <span class="rarity-tag rarity-${script.rarity}">${script.rarity}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="bm-desc">${script.description}</div>
-
-                  <div class="bm-footer">
-                    <div class="req-list">${reqs}${stats}</div>
-                    <div class="bm-action">
-                      ${owned
-                        ? `<div class="product-badge badge-installed">INSTALLED</div>`
-                        : `<div class="bm-price">${formatMoney(script.cost)}</div>
-                           <button
-                             class="btn ${canAfford ? 'btn-market' : 'btn-disabled'} btn-block"
-                             onclick="buyScript('${script.id}')"
-                             ${canAfford ? '' : 'disabled'}
-                           >${canAfford ? 'ACQUIRE' : 'INSUFFICIENT FUNDS'}</button>`
-                      }
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
+          <div class="bm-filter-sep"></div>
+          <div class="bm-filter-group">
+            ${filters.filter(f => f.rarity).map(f => `
+              <button class="bm-filter-btn bm-filter-rarity bm-filter-rarity-${f.key}${_bmFilter === f.key ? ' active' : ''}"
+                onclick="setBMFilter('${f.key}')">${f.label}</button>
+            `).join('')}
           </div>
         </div>
       `;
-    }).join('')}
+
+      const grid = `
+        <div class="bm-grid">
+          ${visible.map(script => {
+            const owned     = !!state.scripts[script.id];
+            const canAfford = !owned && state.balance >= script.cost;
+            const color     = RARITY_COLORS[script.rarity] || RARITY_COLORS.common;
+
+            const reqs = [
+              script.cpu ? `<span class="req">CPU ${script.cpu}</span>` : '',
+              script.ram ? `<span class="req">RAM ${script.ram}GB</span>` : '',
+              script.gpu ? `<span class="req">GPU ${script.gpu}GB</span>` : '',
+            ].filter(Boolean).join('');
+
+            const stats = Object.entries(script.stats || {})
+              .map(([k, v]) => STAT_LABELS[k] ? `<span class="stat-badge">${STAT_LABELS[k](v)}</span>` : '')
+              .filter(Boolean).join('');
+
+            return `
+              <div class="bm-card bm-card-${script.rarity}${owned ? ' bm-card-owned' : ''}">
+                <div class="bm-card-top">
+                  <span class="bm-card-name" style="color:${color}">${script.filename}</span>
+                  <span class="bm-card-cat">${script.category}</span>
+                </div>
+                <div class="bm-card-desc">${script.description}</div>
+                <div class="bm-card-badges">${stats}${reqs}</div>
+                <div class="bm-card-footer">
+                  ${owned
+                    ? `<span class="bm-card-installed">INSTALLED</span>`
+                    : `<span class="bm-card-price">${formatMoney(script.cost)}</span>
+                       <button class="btn ${canAfford ? 'btn-market' : 'btn-disabled'} bm-card-btn"
+                         onclick="buyScript('${script.id}')"
+                         ${canAfford ? '' : 'disabled'}
+                       >${canAfford ? 'ACQUIRE' : 'NO FUNDS'}</button>`
+                  }
+                </div>
+              </div>
+            `;
+          }).join('')}
+          ${visible.length === 0 ? `<div class="bm-grid-empty">No scripts match this filter.</div>` : ''}
+        </div>
+      `;
+
+      return filterBar + grid;
+    })()}
   `;
 }
 
@@ -653,6 +681,7 @@ const MSG_STATUS_LABELS = {
   completed: { text: 'PAID',      cls: 'tag-green'  },
   expired:   { text: 'EXPIRED',   cls: 'tag-muted'  },
   declined:  { text: 'DECLINED',  cls: 'tag-muted'  },
+  failed:    { text: 'FAILED',    cls: 'tag-red'     },
 };
 
 function renderMessageList() {
@@ -729,38 +758,106 @@ function renderMessageDetail(msgId) {
   const isPending  = msg.status === 'unread' || msg.status === 'read';
   const isDone     = !isPending && !isActive;
 
+  // Contract type metadata
+  const CONTRACT_TYPE_INFO = {
+    hash_crack:  { label: 'HASH CRACK',  color: 'var(--accent)'         },
+    exfil:       { label: 'EXFIL',       color: 'var(--violet)'         },
+    backdoor:    { label: 'BACKDOOR',    color: 'var(--orange)'         },
+    disrupt:     { label: 'DISRUPT',     color: 'var(--red)'            },
+    stealth_op:  { label: 'GHOST OP',   color: 'var(--green)'          },
+  };
+  const typeInfo = msg.contractType ? CONTRACT_TYPE_INFO[msg.contractType] : null;
+
+  // Stealth validation
+  const stealthBlocked = msg.contractType === 'stealth_op' && isPending && !state.scripts[msg.requiredScript];
+  const stealthScript  = msg.requiredScript ? SCRIPTS.find(s => s.id === msg.requiredScript) : null;
+
   // Toolbar buttons
   let toolbarHtml = '';
   if (isContract && isPending) {
-    toolbarHtml = `
-      <button class="email-btn email-btn-primary" onclick="acceptContract('${msg.id}')">Accept job</button>
-      <button class="email-btn email-btn-ghost" onclick="declineContract('${msg.id}')">Decline</button>
-    `;
+    toolbarHtml = stealthBlocked
+      ? `<span class="email-status-pill pill-dead">Requires ${stealthScript?.filename || msg.requiredScript}</span>
+         <button class="email-btn email-btn-ghost" onclick="declineContract('${msg.id}')">Decline</button>`
+      : `<button class="email-btn email-btn-primary" onclick="acceptContract('${msg.id}')">Accept job</button>
+         <button class="email-btn email-btn-ghost" onclick="declineContract('${msg.id}')">Decline</button>`;
   } else if (isActive) {
     toolbarHtml = `<span class="email-status-pill pill-running">Running…</span>`;
   } else if (msg.status === 'completed') {
     toolbarHtml = `<span class="email-status-pill pill-done">Paid — ${formatMoney(msg.reward)}</span>`;
+  } else if (msg.status === 'failed') {
+    toolbarHtml = `<span class="email-status-pill pill-dead">Failed</span>`;
   } else if (msg.status === 'expired') {
     toolbarHtml = `<span class="email-status-pill pill-dead">Expired</span>`;
   } else if (msg.status === 'declined') {
     toolbarHtml = `<span class="email-status-pill pill-dead">Declined</span>`;
   }
 
-  // Progress bar
+  // Progress section
   let progressHtml = '';
   if (isActive) {
-    const total     = msg.completesAt - msg.acceptedAt;
-    const elapsed   = now - msg.acceptedAt;
-    const pct       = Math.min(100, (elapsed / total) * 100);
-    const remaining = Math.max(0, Math.ceil((msg.completesAt - now) / 1000));
-    progressHtml = `
-      <div class="email-progress">
-        <div class="progress-track">
-          <div class="progress-fill" id="progress-${msg.id}" style="width:${pct}%"></div>
+    const deadlineRemaining = Math.max(0, Math.ceil((msg.completesAt - now) / 1000));
+
+    if (msg.contractType === 'hash_crack') {
+      const cracked = Math.min(msg.hashCount, state.totalHashesCracked - (msg.hashesAtAccept || 0));
+      const pct     = Math.min(100, (cracked / msg.hashCount) * 100);
+      progressHtml = `
+        <div class="email-progress">
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${pct}%"></div>
+          </div>
+          <span class="email-progress-label">${cracked} / ${msg.hashCount} cracked · ${deadlineRemaining}s left</span>
         </div>
-        <span class="email-progress-label" id="progress-text-${msg.id}">${remaining}s remaining</span>
-      </div>
-    `;
+      `;
+    } else if (msg.contractType === 'exfil' || msg.contractType === 'stealth_op') {
+      const targetNode = state.map?.nodes.find(n => n.id === msg.targetNodeId);
+      const done = targetNode?.status === 'compromised' && targetNode?.searchedAt > msg.acceptedAt;
+      progressHtml = `
+        <div class="email-progress">
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${done ? 100 : 0}%"></div>
+          </div>
+          <span class="email-progress-label">${done ? 'Data retrieved — completing…' : `Infiltrate ${msg.targetNodeLabel} and search files · ${deadlineRemaining}s left`}</span>
+        </div>
+      `;
+    } else if (msg.contractType === 'backdoor') {
+      const held  = msg.holdStartedAt ? Math.min(msg.holdDuration, Date.now() - msg.holdStartedAt) : 0;
+      const pct   = Math.min(100, (held / msg.holdDuration) * 100);
+      const heldS = Math.floor(held / 1000);
+      const totS  = Math.floor(msg.holdDuration / 1000);
+      progressHtml = `
+        <div class="email-progress">
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-${msg.id}" style="width:${pct}%"></div>
+          </div>
+          <span class="email-progress-label" id="progress-text-${msg.id}">${msg.holdStartedAt ? `${heldS}s / ${totS}s held` : `Compromise ${msg.targetNodeLabel} to start timer`} · ${deadlineRemaining}s deadline</span>
+        </div>
+      `;
+    } else if (msg.contractType === 'disrupt') {
+      const disrupted = msg.disruptStartedAt ? Math.min(msg.disruptDuration, Date.now() - msg.disruptStartedAt) : 0;
+      const pct       = Math.min(100, (disrupted / msg.disruptDuration) * 100);
+      const disS      = Math.floor(disrupted / 1000);
+      const totS      = Math.floor(msg.disruptDuration / 1000);
+      progressHtml = `
+        <div class="email-progress">
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-${msg.id}" style="background:var(--gold);width:${pct}%"></div>
+          </div>
+          <span class="email-progress-label" id="progress-text-${msg.id}">${msg.disruptStartedAt ? `${disS}s / ${totS}s disrupted` : `Disrupt ${msg.targetNodeLabel} from the Map`} · ${deadlineRemaining}s deadline</span>
+        </div>
+      `;
+    } else {
+      const total   = msg.completesAt - msg.acceptedAt;
+      const elapsed = now - msg.acceptedAt;
+      const pct     = Math.min(100, (elapsed / total) * 100);
+      progressHtml = `
+        <div class="email-progress">
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-${msg.id}" style="width:${pct}%"></div>
+          </div>
+          <span class="email-progress-label" id="progress-text-${msg.id}">${deadlineRemaining}s remaining</span>
+        </div>
+      `;
+    }
   }
 
   // Contract metadata
@@ -772,16 +869,41 @@ function renderMessageDetail(msgId) {
            <span class="email-meta-val expiry" id="expiry-detail-${msg.id}">${formatCountdown(msg.expiresAt - now)}</span>
          </div>`
       : '';
+    const targetHtml = msg.targetNodeLabel
+      ? `<div class="email-meta-row">
+           <span class="email-meta-key">Target</span>
+           <span class="email-meta-val"><span class="filename">${msg.targetNodeLabel}</span> <span style="color:var(--text-muted);font-size:10px">${msg.targetNodeType || ''}</span></span>
+         </div>`
+      : '';
+    const hashCountHtml = msg.hashCount
+      ? `<div class="email-meta-row">
+           <span class="email-meta-key">Hashes</span>
+           <span class="email-meta-val">${msg.hashCount} to crack</span>
+         </div>`
+      : '';
+    const stealthReqHtml = msg.requiredScript
+      ? `<div class="email-meta-row">
+           <span class="email-meta-key">Requires</span>
+           <span class="email-meta-val${stealthBlocked ? ' warn' : ''}"><span class="filename">${stealthScript?.filename || msg.requiredScript}</span></span>
+         </div>`
+      : '';
     metaHtml = `
       <div class="email-meta-block">
+        ${typeInfo ? `<div class="email-meta-row">
+          <span class="email-meta-key">Type</span>
+          <span class="email-meta-val" style="color:${typeInfo.color}">${typeInfo.label}${msg.tier ? ` · Tier ${msg.tier}` : ''}</span>
+        </div>` : ''}
         <div class="email-meta-row">
           <span class="email-meta-key">Reward</span>
           <span class="email-meta-val green">${formatMoney(msg.reward)}</span>
         </div>
         <div class="email-meta-row">
-          <span class="email-meta-key">Est. duration</span>
+          <span class="email-meta-key">Deadline</span>
           <span class="email-meta-val">~${msg.duration}s</span>
         </div>
+        ${targetHtml}
+        ${hashCountHtml}
+        ${stealthReqHtml}
         ${expiryHtml}
       </div>
     `;
@@ -830,21 +952,33 @@ function renderMessageDetail(msgId) {
 function updateMessageTimers() {
   const now = Date.now();
 
-  // Progress bars for active contracts
   for (const msg of state.messages) {
     if (msg.status === 'active') {
-      const fill = document.getElementById(`progress-${msg.id}`);
-      const text = document.getElementById(`progress-text-${msg.id}`);
-      if (fill && text) {
+      const fill     = document.getElementById(`progress-${msg.id}`);
+      const text     = document.getElementById(`progress-text-${msg.id}`);
+      const deadline = Math.max(0, Math.ceil((msg.completesAt - now) / 1000));
+
+      if (msg.contractType === 'backdoor' && fill && text) {
+        const held = msg.holdStartedAt ? Math.min(msg.holdDuration, now - msg.holdStartedAt) : 0;
+        fill.style.width = `${Math.min(100, (held / msg.holdDuration) * 100)}%`;
+        text.textContent = msg.holdStartedAt
+          ? `${Math.floor(held/1000)}s / ${Math.floor(msg.holdDuration/1000)}s held · ${deadline}s deadline`
+          : `Compromise ${msg.targetNodeLabel} to start timer · ${deadline}s deadline`;
+
+      } else if (msg.contractType === 'disrupt' && fill && text) {
+        const dis = msg.disruptStartedAt ? Math.min(msg.disruptDuration, now - msg.disruptStartedAt) : 0;
+        fill.style.width = `${Math.min(100, (dis / msg.disruptDuration) * 100)}%`;
+        text.textContent = msg.disruptStartedAt
+          ? `${Math.floor(dis/1000)}s / ${Math.floor(msg.disruptDuration/1000)}s disrupted · ${deadline}s deadline`
+          : `Disrupt ${msg.targetNodeLabel} from the Map · ${deadline}s deadline`;
+
+      } else if (fill && text && !msg.contractType) {
         const total = msg.completesAt - msg.acceptedAt;
-        const elapsed = now - msg.acceptedAt;
-        fill.style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
-        const remaining = Math.max(0, Math.ceil((msg.completesAt - now) / 1000));
-        text.textContent = remaining > 0 ? `${remaining}s remaining` : 'Completing...';
+        fill.style.width = `${Math.min(100, ((now - msg.acceptedAt) / total) * 100)}%`;
+        text.textContent = deadline > 0 ? `${deadline}s remaining` : 'Completing...';
       }
     }
 
-    // Expiry countdown in detail pane
     if ((msg.status === 'read' || msg.status === 'unread') && msg.expiresAt) {
       const el = document.getElementById(`expiry-detail-${msg.id}`);
       if (el) el.textContent = formatCountdown(msg.expiresAt - now);

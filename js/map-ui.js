@@ -22,6 +22,7 @@ const NODE_STATUS_LABELS = {
   hacking:     { text: 'HACKING...',  color: 'var(--orange)'         },
   compromised: { text: 'COMPROMISED', color: 'var(--green)'          },
   offline:     { text: 'OFFLINE',     color: 'var(--red)'            },
+  disrupted:   { text: 'DISRUPTED',   color: 'var(--gold)'           },
 };
 
 // ── Entry points ─────────────────────────────────────────
@@ -111,10 +112,11 @@ function _nodeToSVG(node) {
     case 'hacking':     fill = color + '35';   strokeOpacity = 1;    break;
     case 'compromised': fill = color + '25';   strokeOpacity = 1;    break;
     case 'offline':     fill = '#f8717120';    strokeOpacity = 0.5;  break;
+    case 'disrupted':   fill = '#f59e0b18';    strokeOpacity = 0.8;  break;
     default:            fill = 'none';         strokeOpacity = 0.3;
   }
 
-  const nodeColor = node.status === 'offline' ? '#f87171' : color;
+  const nodeColor = node.status === 'offline' ? '#f87171' : node.status === 'disrupted' ? '#f59e0b' : color;
   let out = `<g id="map-node-${node.id}" onclick="selectMapNode('${node.id}')" style="cursor:pointer">`;
 
   if (selected)              out += `<circle cx="${node.x}" cy="${node.y}" r="${r + 7}" fill="none" stroke="${nodeColor}" stroke-width="1" opacity="0.3"/>`;
@@ -248,6 +250,17 @@ function renderMapPanel() {
   const color      = NODE_COLORS[node.type];
   const statusInfo = NODE_STATUS_LABELS[node.status] || { text: node.status.toUpperCase(), color: 'var(--text-muted)' };
 
+  // Check for active contracts targeting this node
+  const activeContract = state.messages.find(m =>
+    m.status === 'active' && m.targetNodeId === node.id
+  );
+  const CONTRACT_TYPE_LABELS = { exfil: 'EXFIL', backdoor: 'BACKDOOR', disrupt: 'DISRUPT', stealth_op: 'GHOST OP' };
+  const contractBadge = activeContract ? `
+    <div style="font-size:10px;color:var(--accent);background:var(--accent-dim);padding:2px 8px;border-radius:2px;display:inline-block;margin-top:4px">
+      CONTRACT: ${CONTRACT_TYPE_LABELS[activeContract.contractType] || activeContract.contractType}
+    </div>
+  ` : '';
+
   const secBars = Array.from({ length: 3 }, (_, i) =>
     `<div class="sec-bar${i < node.security ? ' filled' : ''}"></div>`
   ).join('');
@@ -300,7 +313,8 @@ function renderMapPanel() {
         </div>
       `;
     } else if (node.status === 'compromised') {
-      const hasBleedScript = !!state.scripts['corp_bleeder'];
+      const hasBleedScript  = !!state.scripts['corp_bleeder'];
+      const disruptContract = state.messages.find(m => m.status === 'active' && m.contractType === 'disrupt' && m.targetNodeId === node.id);
       actionsHtml = `
         <div class="map-panel-section">
           <button class="btn ${node.borrowing ? 'btn-stop' : 'btn-primary'} btn-block"
@@ -323,6 +337,31 @@ function renderMapPanel() {
           </button>
           ${node.lootFound ? _mapLootResult(node.lootFound) : ''}
         </div>
+        ${disruptContract ? `
+          <div class="map-panel-section">
+            <button class="btn btn-stop btn-block" onclick="disruptNode('${node.id}')">DISRUPT NODE</button>
+            <div class="map-panel-sub" style="color:var(--gold)">Contract: hold offline for ${Math.round(disruptContract.disruptDuration / 60000)} min</div>
+          </div>
+        ` : ''}
+      `;
+    } else if (node.status === 'disrupted') {
+      const dc = state.messages.find(m => m.status === 'active' && m.contractType === 'disrupt' && m.targetNodeId === node.id);
+      const elapsed = dc?.disruptStartedAt ? Math.floor((Date.now() - dc.disruptStartedAt) / 1000) : 0;
+      const total   = dc ? Math.floor(dc.disruptDuration / 1000) : 0;
+      const pct     = total > 0 ? Math.min(100, (elapsed / total) * 100) : 0;
+      actionsHtml = `
+        <div class="map-panel-section">
+          <div class="map-panel-label" style="color:var(--gold)">Node disrupted</div>
+          ${dc ? `
+            <div class="map-hack-progress" style="margin-top:6px">
+              <div class="progress-track" style="flex:1">
+                <div class="progress-fill" id="disrupt-fill-${node.id}" style="background:var(--gold);width:${pct}%"></div>
+              </div>
+              <span class="map-hack-time" id="disrupt-time-${node.id}">${Math.max(0, total - elapsed)}s</span>
+            </div>
+            <div class="map-panel-sub">Payout: ${formatMoney(dc.reward)}</div>
+          ` : '<div class="map-panel-sub">No active contract.</div>'}
+        </div>
       `;
     } else if (node.status === 'offline') {
       actionsHtml = `
@@ -340,6 +379,7 @@ function renderMapPanel() {
         <div class="map-panel-type" style="color:${color}">${typeDef.displayName.toUpperCase()}</div>
         <div class="map-panel-id">${node.label}</div>
         <div class="map-panel-status" style="color:${statusInfo.color}">${statusInfo.text}</div>
+        ${contractBadge}
       </div>
       <div class="map-panel-section">
         <div class="map-panel-label">Security Level</div>
@@ -372,11 +412,23 @@ function _mapLootResult(items) {
 function updateMapTimers() {
   if (!state.map) return;
   const now = Date.now();
+
   for (const node of state.map.nodes) {
-    if (node.status !== 'hacking' || !node.hackEndsAt) continue;
-    const fill = document.getElementById(`map-hack-fill-${node.id}`);
-    const time = document.getElementById(`map-hack-time-${node.id}`);
-    if (fill) fill.style.width = `${Math.min(100, ((now - node.hackStartedAt) / (node.hackEndsAt - node.hackStartedAt)) * 100)}%`;
-    if (time) time.textContent = `${Math.max(0, Math.ceil((node.hackEndsAt - now) / 1000))}s`;
+    if (node.status === 'hacking' && node.hackEndsAt) {
+      const fill = document.getElementById(`map-hack-fill-${node.id}`);
+      const time = document.getElementById(`map-hack-time-${node.id}`);
+      if (fill) fill.style.width = `${Math.min(100, ((now - node.hackStartedAt) / (node.hackEndsAt - node.hackStartedAt)) * 100)}%`;
+      if (time) time.textContent = `${Math.max(0, Math.ceil((node.hackEndsAt - now) / 1000))}s`;
+    }
+    if (node.status === 'disrupted') {
+      const dc = state.messages.find(m => m.status === 'active' && m.contractType === 'disrupt' && m.targetNodeId === node.id);
+      if (!dc?.disruptStartedAt) continue;
+      const elapsed = Math.floor((now - dc.disruptStartedAt) / 1000);
+      const total   = Math.floor(dc.disruptDuration / 1000);
+      const fill = document.getElementById(`disrupt-fill-${node.id}`);
+      const time = document.getElementById(`disrupt-time-${node.id}`);
+      if (fill) fill.style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
+      if (time) time.textContent = `${Math.max(0, total - elapsed)}s`;
+    }
   }
 }
