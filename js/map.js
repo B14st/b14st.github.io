@@ -111,11 +111,20 @@ function _resolveHack(node) {
   if (Math.random() < getHackChance(node)) {
     node.status = 'compromised';
     _revealNeighbors(node.id);
+    _expireContractsTargeting(node.id);
   } else {
     node.status = 'discovered';
   }
   node.hackStartedAt = null;
   node.hackEndsAt    = null;
+}
+
+function _expireContractsTargeting(nodeId) {
+  for (const msg of state.messages) {
+    if (msg.targetNodeId !== nodeId) continue;
+    if (msg.status !== 'unread' && msg.status !== 'read') continue;
+    msg.status = 'expired';
+  }
 }
 
 // ── Resources & Income ────────────────────────────────────

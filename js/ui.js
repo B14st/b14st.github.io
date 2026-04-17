@@ -3,6 +3,12 @@ let selectedMessageId = null;
 let _bmTab = 'buy';
 let _bmFilter = 'all';
 
+const NODE_TYPE_COLORS = {
+  pc:      '#4ade80',
+  server:  '#a78bfa',
+  company: '#f59e0b',
+};
+
 const RARITY_COLORS = {
   common:    'var(--text-secondary)',
   uncommon:  'var(--green)',
@@ -869,12 +875,17 @@ function renderMessageDetail(msgId) {
            <span class="email-meta-val expiry" id="expiry-detail-${msg.id}">${formatCountdown(msg.expiresAt - now)}</span>
          </div>`
       : '';
-    const targetHtml = msg.targetNodeLabel
-      ? `<div class="email-meta-row">
+    const targetHtml = msg.targetNodeLabel ? (() => {
+      const nodeColor = NODE_TYPE_COLORS[msg.targetNodeType] || 'var(--text-secondary)';
+      const typeLabel = { pc: 'Workstation', server: 'Server', company: 'Corp Server' }[msg.targetNodeType] || msg.targetNodeType || '';
+      return `<div class="email-meta-row">
            <span class="email-meta-key">Target</span>
-           <span class="email-meta-val"><span class="filename">${msg.targetNodeLabel}</span> <span style="color:var(--text-muted);font-size:10px">${msg.targetNodeType || ''}</span></span>
-         </div>`
-      : '';
+           <span class="email-meta-val">
+             <span style="font-family:'JetBrains Mono',monospace;color:${nodeColor}">${msg.targetNodeLabel}</span>
+             <span style="color:${nodeColor};opacity:0.6;font-size:10px;margin-left:4px">${typeLabel}</span>
+           </span>
+         </div>`;
+    })() : '';
     const hashCountHtml = msg.hashCount
       ? `<div class="email-meta-row">
            <span class="email-meta-key">Hashes</span>
