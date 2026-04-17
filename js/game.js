@@ -276,6 +276,7 @@ function acceptContract(msgId) {
         nodeType:      'pc',
         value:         Math.floor(Math.random() * (max - min + 1) + min),
         status:        'pending',
+        contractHash:  true,
         foundAt:       now2,
         crackStartedAt: null,
         cracksAt:       null,

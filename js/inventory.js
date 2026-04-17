@@ -135,16 +135,16 @@ function sellAllDumps() {
 
 function sellHash(hashId) {
   const idx = state.inventory.hashes.findIndex(h => h.id === hashId);
-  if (idx === -1 || state.inventory.hashes[idx].status !== 'done') return;
+  if (idx === -1 || state.inventory.hashes[idx].status !== 'done' || state.inventory.hashes[idx].contractHash) return;
   state.balance += state.inventory.hashes[idx].value;
   state.inventory.hashes.splice(idx, 1);
   renderCards();
 }
 
 function sellAllHashes() {
-  const done = state.inventory.hashes.filter(h => h.status === 'done');
+  const done = state.inventory.hashes.filter(h => h.status === 'done' && !h.contractHash);
   for (const h of done) state.balance += h.value;
-  state.inventory.hashes = state.inventory.hashes.filter(h => h.status !== 'done');
+  state.inventory.hashes = state.inventory.hashes.filter(h => h.status !== 'done' || h.contractHash);
   renderCards();
 }
 

@@ -456,7 +456,7 @@ function setBMFilter(filter) {
 }
 
 function _renderBMSellTab() {
-  const hashes = (state.inventory?.hashes || []).filter(h => h.status === 'done');
+  const hashes = (state.inventory?.hashes || []).filter(h => h.status === 'done' && !h.contractHash);
   const dumps  = state.inventory?.dumps || [];
 
   const hashSection = `
