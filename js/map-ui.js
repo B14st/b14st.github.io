@@ -118,6 +118,7 @@ function _nodeToSVG(node) {
 
   const nodeColor = node.status === 'offline' ? '#f87171' : node.status === 'disrupted' ? '#f59e0b' : color;
   let out = `<g id="map-node-${node.id}" onclick="selectMapNode('${node.id}')" style="cursor:pointer">`;
+  out += `<circle cx="${node.x}" cy="${node.y}" r="${r + 10}" fill="transparent"/>`;
 
   if (selected)              out += `<circle cx="${node.x}" cy="${node.y}" r="${r + 7}" fill="none" stroke="${nodeColor}" stroke-width="1" opacity="0.3"/>`;
   if (node.status === 'hacking') out += `<circle cx="${node.x}" cy="${node.y}" r="${r + 4}" fill="none" stroke="${nodeColor}" stroke-width="1" class="map-pulse"/>`;
