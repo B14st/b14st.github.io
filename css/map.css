@@ -1,0 +1,204 @@
+/* ── Map View ── */
+.map-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.map-canvas-area {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  user-select: none;
+}
+
+#map-svg.dragging {
+  cursor: grabbing;
+}
+
+/* ── Zoom controls ── */
+.map-controls {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.map-ctrl-btn {
+  width: 28px;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.map-ctrl-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.map-node-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  fill: var(--text-secondary);
+  pointer-events: none;
+  user-select: none;
+}
+
+.map-pulse {
+  animation: map-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes map-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 0.05; }
+}
+
+/* ── Map Panel ── */
+.map-panel {
+  width: 260px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.map-panel::-webkit-scrollbar { width: 3px; }
+.map-panel::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 99px; }
+
+.map-panel-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.map-panel-inner {
+  display: flex;
+  flex-direction: column;
+}
+
+.map-panel-head {
+  padding: 16px;
+  border-bottom: 1px solid;
+}
+
+.map-panel-type {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin-bottom: 5px;
+}
+
+.map-panel-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+}
+
+.map-panel-status {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.map-panel-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-panel-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.map-panel-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.map-panel-sub.warn { color: var(--orange); }
+
+/* ── Security Bars ── */
+.sec-bars {
+  display: flex;
+  gap: 5px;
+}
+
+.sec-bar {
+  width: 28px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+
+.sec-bar.filled {
+  background: var(--red);
+  border-color: rgba(248, 113, 113, 0.4);
+  box-shadow: 0 0 5px rgba(248, 113, 113, 0.25);
+}
+
+/* ── Resources ── */
+.map-res-list {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.map-res {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--green);
+  background: var(--green-dim);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+/* ── Hack Progress ── */
+.map-hack-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-hack-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}

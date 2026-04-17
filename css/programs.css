@@ -1,0 +1,301 @@
+/* ── Layout ── */
+
+.programs-view {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.programs-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.programs-sidebar-header {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+
+.program-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-left: 2px solid transparent;
+  transition: background 0.1s, color 0.1s;
+}
+
+.program-entry:hover:not(.locked) {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.program-entry.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.program-entry.locked {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.program-entry-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.program-locked-badge {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 2px;
+  margin-left: auto;
+}
+
+/* ── Content area ── */
+
+.programs-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px;
+}
+
+.programs-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Program view ── */
+
+.program-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.program-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.program-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+
+.program-version {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.program-slots-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.program-slot-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 1px solid var(--border-2);
+}
+
+.program-slot-dot.active {
+  background: var(--green);
+  border-color: rgba(74, 222, 128, 0.5);
+  box-shadow: 0 0 4px rgba(74, 222, 128, 0.3);
+}
+
+.program-section-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.program-crack-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid rgba(74, 222, 128, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.program-crack-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.program-crack-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.program-crack-time {
+  font-size: 11px;
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.program-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.program-queue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0.6;
+}
+
+.program-queue-badge {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg, #0a0c10);
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+
+/* ── Black Market tabs ── */
+
+.bm-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.bm-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 8px 16px;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.1s, border-color 0.1s;
+  font-family: inherit;
+}
+
+.bm-tab:hover {
+  color: var(--text-secondary);
+}
+
+.bm-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Sell section ── */
+
+.bm-sell-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.bm-sell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bm-sell-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.bm-sell-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.bm-sell-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.bm-sell-type {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bm-sell-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+  min-width: 64px;
+  text-align: right;
+}
+
+.bm-sell-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 10px 0;
+}
