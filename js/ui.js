@@ -2,6 +2,7 @@ let activeView = 'dashboard';
 let selectedMessageId = null;
 let _bmTab = 'buy';
 let _bmFilter = 'all';
+const _expandedStatuses = new Set();
 
 const NODE_TYPE_COLORS = {
   pc:      '#4ade80',
@@ -30,6 +31,62 @@ function formatCountdown(ms) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// ── Map summary (sidebar) ────────────────────────────────
+
+const _MAP_SUMMARY_STATUSES = [
+  { key: 'compromised', label: 'COMPROMISED', color: '#4ade80' },
+  { key: 'scanning',    label: 'SCANNING',    color: '#a78bfa' },
+  { key: 'hacking',     label: 'EXPLOITING',  color: '#fb923c' },
+  { key: 'discovered',  label: 'DISCOVERED',  color: 'var(--text-secondary)' },
+  { key: 'disrupted',   label: 'DISRUPTED',   color: '#f59e0b' },
+  { key: 'offline',     label: 'OFFLINE',     color: '#f87171' },
+];
+
+function toggleMapSummary(status) {
+  _expandedStatuses.has(status) ? _expandedStatuses.delete(status) : _expandedStatuses.add(status);
+  updateMapSummary();
+}
+
+function updateMapSummary() {
+  const el = document.getElementById('map-summary');
+  if (!el) return;
+
+  if (!state.map?.nodes) { el.innerHTML = ''; return; }
+
+  const nodes = state.map.nodes.filter(n => n.type !== 'home' && n.status !== 'unknown');
+  const groups = _MAP_SUMMARY_STATUSES
+    .map(cfg => ({ ...cfg, nodes: nodes.filter(n => n.status === cfg.key) }))
+    .filter(g => g.nodes.length > 0);
+
+  if (groups.length === 0) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `
+    <div class="map-summary-inner">
+      ${groups.map(g => {
+        const expanded = _expandedStatuses.has(g.key);
+        return `
+          <div class="map-summary-group">
+            <div class="map-summary-row" onclick="toggleMapSummary('${g.key}')">
+              <span class="map-summary-dot" style="background:${g.color}"></span>
+              <span class="map-summary-label">${g.label}</span>
+              <span class="map-summary-count">${g.nodes.length}</span>
+              <span class="map-summary-arrow">${expanded ? '▾' : '▸'}</span>
+            </div>
+            ${expanded ? `
+              <div class="map-summary-nodes">
+                ${g.nodes.map(n => {
+                  const c = NODE_TYPE_COLORS[n.type] || 'var(--text-muted)';
+                  return `<div class="map-summary-node" style="color:${c}" onclick="focusMapNode('${n.id}')">${n.label}</div>`;
+                }).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 // ── Navigation ───────────────────────────────────────────
 
 function setView(view) {
@@ -45,6 +102,25 @@ function setView(view) {
 function renderUI() {
   document.getElementById('balance').textContent = formatMoney(state.balance);
   document.getElementById('income-rate').textContent = `${formatMoney(getIncomePerSec())}/s`;
+
+  const resEl = document.getElementById('sidebar-resources');
+  if (resEl) {
+    const used = getUsedResources();
+    resEl.innerHTML = ['cpu', 'ram', 'gpu'].map(type => {
+      const cap = getCapacity(type);
+      const u   = used[type];
+      const pct = cap > 0 ? (u / cap) * 100 : 0;
+      const cls = pct >= 100 ? ' full' : pct > 70 ? ' high' : '';
+      return `
+        <div class="sidebar-res-row">
+          <span class="sidebar-res-label">${HARDWARE[type].name}</span>
+          <div class="resource-track sidebar-res-track">
+            <div class="resource-fill${cls}" style="width:${pct}%"></div>
+          </div>
+          <span class="sidebar-res-reading">${u}/${cap}</span>
+        </div>`;
+    }).join('');
+  }
 
   if (activeView === 'dashboard') {
     renderStatsPanel();
@@ -74,6 +150,7 @@ function renderUI() {
 // ── State-change rebuilds ────────────────────────────────
 
 function renderCards() {
+  updateMapSummary();
   switch (activeView) {
     case 'dashboard':
       renderOperationsPanel();
@@ -195,8 +272,8 @@ function renderContent() {
 function renderStatsPanel() {
   const body = document.getElementById('stats-body');
   if (!body) return;
-  const activeOps = OPERATIONS.filter(op => state.operations[op.id]).length;
-  const ownedScripts = Object.values(state.scripts).filter(Boolean).length;
+  const activeOps    = OPERATIONS.filter(op => isOperationActive(op)).length;
+  const ownedPrograms = new Set([...state.programs.inventory, ...getEquippedProgramIds()]).size;
   body.innerHTML = `
     <div class="stats-grid">
       <div class="stat-tile">
@@ -212,8 +289,8 @@ function renderStatsPanel() {
         <div class="stat-tile-value">${activeOps}<span class="stat-sub"> / ${OPERATIONS.length}</span></div>
       </div>
       <div class="stat-tile">
-        <div class="stat-tile-label">Scripts</div>
-        <div class="stat-tile-value">${ownedScripts}<span class="stat-sub"> / ${SCRIPTS.length}</span></div>
+        <div class="stat-tile-label">Programs</div>
+        <div class="stat-tile-value">${ownedPrograms}<span class="stat-sub"> / ${PROGRAMS.length}</span></div>
       </div>
     </div>
   `;
@@ -264,24 +341,25 @@ function renderOperationsPanel() {
   body.innerHTML = '';
 
   for (const op of OPERATIONS) {
-    const active = !!state.operations[op.id];
-    const status = active ? 'ok' : getOpStatus(op);
-    const script = op.requiredScript ? getScript(op.requiredScript) : null;
-    const costs = getOpCosts(op);
+    const active    = isOperationActive(op);
+    const status    = active ? 'ok' : getOpStatus(op);
     const canToggle = active || status === 'ok';
 
     let statusHint = '';
     if (status === 'no-script') {
+      const script = getScript(op.requiredScript);
       statusHint = `<div class="status-hint">Requires <span class="filename">${script ? script.filename : '???'}</span></div>`;
     } else if (status === 'no-resources') {
-      const used = getUsedResources();
+      const costs = getOpCosts(op);
+      const used  = getUsedResources();
       const lacking = [];
-      if (costs.cpu && used.cpu + costs.cpu > getCapacity('cpu')) lacking.push(`CPU ${costs.cpu}`);
-      if (costs.ram && used.ram + costs.ram > getCapacity('ram')) lacking.push(`RAM ${costs.ram}GB`);
-      if (costs.gpu && used.gpu + costs.gpu > getCapacity('gpu')) lacking.push(`GPU ${costs.gpu}GB`);
+      if (costs?.cpu && used.cpu + costs.cpu > getCapacity('cpu')) lacking.push(`CPU ${costs.cpu}`);
+      if (costs?.ram && used.ram + costs.ram > getCapacity('ram')) lacking.push(`RAM ${costs.ram}GB`);
+      if (costs?.gpu && used.gpu + costs.gpu > getCapacity('gpu')) lacking.push(`GPU ${costs.gpu}GB`);
       statusHint = `<div class="status-hint warn">Insufficient: ${lacking.join(', ')}</div>`;
     }
 
+    const costs = getOpCosts(op);
     const reqs = costs ? [
       costs.cpu ? `<span class="req">CPU ${costs.cpu}</span>` : '',
       costs.ram ? `<span class="req">RAM ${costs.ram}GB</span>` : '',
@@ -299,11 +377,8 @@ function renderOperationsPanel() {
       </div>
       <div class="card-right">
         <div class="income-badge">${formatMoney(op.incomePerSec)}<span class="per-sec">/s</span></div>
-        <button
-          class="btn ${active ? 'btn-stop' : canToggle ? 'btn-primary' : 'btn-disabled'}"
-          onclick="toggleOperation('${op.id}')"
-          ${canToggle ? '' : 'disabled'}
-        >${active ? 'STOP' : 'RUN'}</button>
+        <button class="btn ${active ? 'btn-stop' : canToggle ? 'btn-primary' : 'btn-disabled'}"
+          onclick="toggleOperation('${op.id}')" ${canToggle ? '' : 'disabled'}>${active ? 'STOP' : 'RUN'}</button>
       </div>
     `;
     body.appendChild(card);
@@ -443,6 +518,8 @@ const SCRIPT_ICONS = {
 const STAT_LABELS = {
   incomeMultiplier:   v => `Income ×${v}`,
   contractSpeedBonus: v => `Speed ×${v}`,
+  parallelCracks:     v => `${v} crack slots`,
+  exposureDecay:      v => `-${v}/s exposure`,
 };
 
 function setBMTab(tab) {
@@ -501,22 +578,46 @@ function _renderBMSellTab() {
   return hashSection + dumpSection;
 }
 
+function _renderBMItemCard(item, owned, onBuy, canAfford) {
+  const color = RARITY_COLORS[item.rarity] || RARITY_COLORS.common;
+  const reqs = [
+    item.cpu ? `<span class="req">CPU ${item.cpu}</span>` : '',
+    item.ram ? `<span class="req">RAM ${item.ram}GB</span>` : '',
+    item.gpu ? `<span class="req">GPU ${item.gpu}GB</span>` : '',
+  ].filter(Boolean).join('');
+  const stats = Object.entries(item.stats || {})
+    .map(([k, v]) => STAT_LABELS[k] ? `<span class="stat-badge">${STAT_LABELS[k](v)}</span>` : '')
+    .filter(Boolean).join('');
+
+  return `
+    <div class="bm-card bm-card-${item.rarity}${owned ? ' bm-card-owned' : ''}">
+      <div class="bm-card-top">
+        <span class="bm-card-name" style="color:${color}">${item.filename}</span>
+        <span class="bm-card-cat">${item.category}</span>
+      </div>
+      <div class="bm-card-desc">${item.description}</div>
+      <div class="bm-card-badges">${stats}${reqs}</div>
+      <div class="bm-card-footer">
+        ${owned
+          ? `<span class="bm-card-installed">OWNED</span>`
+          : `<span class="bm-card-price">${formatMoney(item.cost)}</span>
+             <button class="btn ${canAfford ? 'btn-market' : 'btn-disabled'} bm-card-btn"
+               onclick="${onBuy}" ${canAfford ? '' : 'disabled'}>${canAfford ? 'ACQUIRE' : 'NO FUNDS'}</button>`
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderBlackMarketView() {
   const body = document.getElementById('shop-body');
   if (!body) return;
-
-  const categories = [
-    { key: 'automation', label: 'AUTOMATION TOOLS',  desc: 'Passive income scripts. Run continuously in the background.' },
-    { key: 'contract',   label: 'CONTRACT TOOLS',    desc: 'One-time job utilities. Speeds up contract completion time.'  },
-    { key: 'network',    label: 'NETWORK TOOLS',     desc: 'Node intrusion and exploitation utilities. Used on the Map.'  },
-    { key: 'stealth',    label: 'STEALTH TOOLS',     desc: 'Traffic masking and evasion suites. Required for ghost operations.' },
-  ];
 
   body.innerHTML = `
     <div class="store-header bm-header">
       <div class="store-brand">
         <div class="store-name bm-name">sh4dow.market</div>
-        <div class="store-tagline">Anonymous script exchange &mdash; no questions asked</div>
+        <div class="store-tagline">Anonymous exchange &mdash; no questions asked</div>
       </div>
       <div class="store-wallet">
         <div class="store-wallet-label">AVAILABLE BUDGET</div>
@@ -542,13 +643,6 @@ function renderBlackMarketView() {
         { key: 'legendary',  label: 'LEGENDARY', rarity: true },
       ];
 
-      const visible = SCRIPTS.filter(s => {
-        if (_bmFilter === 'all') return true;
-        const f = filters.find(f => f.key === _bmFilter);
-        if (f?.rarity) return s.rarity === _bmFilter;
-        return s.category === _bmFilter;
-      });
-
       const filterBar = `
         <div class="bm-filter-bar">
           <div class="bm-filter-group">
@@ -567,49 +661,48 @@ function renderBlackMarketView() {
         </div>
       `;
 
-      const grid = `
+      // Programs (equippable)
+      const visibleProgs = PROGRAMS.filter(p => {
+        if (_bmFilter === 'all') return true;
+        const f = filters.find(fi => fi.key === _bmFilter);
+        if (f?.rarity) return p.rarity === _bmFilter;
+        return p.category === _bmFilter;
+      });
+
+      // Scripts — filter same as programs
+      const visibleScripts = SCRIPTS.filter(s => {
+        if (_bmFilter === 'all') return true;
+        const f = filters.find(fi => fi.key === _bmFilter);
+        if (f?.rarity) return s.rarity === _bmFilter;
+        return s.category === _bmFilter;
+      });
+
+      const progsHtml = visibleProgs.length > 0 ? `
+        <div class="bm-section-label">PROGRAMS <span class="bm-section-sub">— equip in Programs tab</span></div>
         <div class="bm-grid">
-          ${visible.map(script => {
-            const owned     = !!state.scripts[script.id];
-            const canAfford = !owned && state.balance >= script.cost;
-            const color     = RARITY_COLORS[script.rarity] || RARITY_COLORS.common;
-
-            const reqs = [
-              script.cpu ? `<span class="req">CPU ${script.cpu}</span>` : '',
-              script.ram ? `<span class="req">RAM ${script.ram}GB</span>` : '',
-              script.gpu ? `<span class="req">GPU ${script.gpu}GB</span>` : '',
-            ].filter(Boolean).join('');
-
-            const stats = Object.entries(script.stats || {})
-              .map(([k, v]) => STAT_LABELS[k] ? `<span class="stat-badge">${STAT_LABELS[k](v)}</span>` : '')
-              .filter(Boolean).join('');
-
-            return `
-              <div class="bm-card bm-card-${script.rarity}${owned ? ' bm-card-owned' : ''}">
-                <div class="bm-card-top">
-                  <span class="bm-card-name" style="color:${color}">${script.filename}</span>
-                  <span class="bm-card-cat">${script.category}</span>
-                </div>
-                <div class="bm-card-desc">${script.description}</div>
-                <div class="bm-card-badges">${stats}${reqs}</div>
-                <div class="bm-card-footer">
-                  ${owned
-                    ? `<span class="bm-card-installed">INSTALLED</span>`
-                    : `<span class="bm-card-price">${formatMoney(script.cost)}</span>
-                       <button class="btn ${canAfford ? 'btn-market' : 'btn-disabled'} bm-card-btn"
-                         onclick="buyScript('${script.id}')"
-                         ${canAfford ? '' : 'disabled'}
-                       >${canAfford ? 'ACQUIRE' : 'NO FUNDS'}</button>`
-                  }
-                </div>
-              </div>
-            `;
+          ${visibleProgs.map(p => {
+            const owned     = isProgramOwned(p.id);
+            const canAfford = !owned && state.balance >= p.cost;
+            return _renderBMItemCard(p, owned, `buyProgram('${p.id}')`, canAfford);
           }).join('')}
-          ${visible.length === 0 ? `<div class="bm-grid-empty">No scripts match this filter.</div>` : ''}
         </div>
-      `;
+      ` : '';
 
-      return filterBar + grid;
+      const scriptsHtml = visibleScripts.length > 0 ? `
+        <div class="bm-section-label" style="margin-top:20px">SCRIPTS <span class="bm-section-sub">— hacking tools &amp; automation</span></div>
+        <div class="bm-grid">
+          ${visibleScripts.map(s => {
+            const owned     = !!state.scripts[s.id];
+            const canAfford = !owned && state.balance >= s.cost;
+            return _renderBMItemCard(s, owned, `buyScript('${s.id}')`, canAfford);
+          }).join('')}
+        </div>
+      ` : '';
+
+      const emptyHtml = !progsHtml && !scriptsHtml
+        ? `<div class="bm-grid-empty">Nothing matches this filter.</div>` : '';
+
+      return filterBar + progsHtml + scriptsHtml + emptyHtml;
     })()}
   `;
 }

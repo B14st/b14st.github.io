@@ -4,11 +4,12 @@ function renderFilesView() {
   const content = document.getElementById('content');
   if (!content) return;
 
-  const hashes      = state.inventory?.hashes || [];
-  const dumps       = state.inventory?.dumps  || [];
+  const hashes       = state.inventory?.hashes || [];
+  const dumps        = state.inventory?.dumps  || [];
+  const ownedProgIds = new Set([...state.programs.inventory, ...getEquippedProgramIds()]);
   const ownedScripts = SCRIPTS.filter(s => state.scripts[s.id]);
 
-  const counts = { scripts: ownedScripts.length, hashes: hashes.length, dumps: dumps.length };
+  const counts = { scripts: ownedProgIds.size + ownedScripts.length, hashes: hashes.length, dumps: dumps.length };
 
   const folders = [
     { id: 'scripts', label: 'scripts',  icon: '.sh'   },
@@ -67,30 +68,45 @@ const _FILES_STAT_LABELS = {
 };
 
 function _renderScriptFiles() {
-  const owned = SCRIPTS.filter(s => state.scripts[s.id]);
-  if (owned.length === 0) {
-    return `<div class="files-empty">No scripts installed. Visit the Black Market.</div>`;
+  const ownedProgs   = [...new Set([...state.programs.inventory, ...getEquippedProgramIds()])].map(getProgram).filter(Boolean);
+  const ownedScripts = SCRIPTS.filter(s => state.scripts[s.id]);
+
+  if (ownedProgs.length === 0 && ownedScripts.length === 0) {
+    return `<div class="files-empty">No programs or scripts. Visit the Black Market.</div>`;
   }
 
-  return owned.map(s => {
-    const color = _FILES_RARITY_COLORS[s.rarity] || _FILES_RARITY_COLORS.common;
-    const stats = Object.entries(s.stats || {})
+  const renderItem = (item, badge) => {
+    const color = _FILES_RARITY_COLORS[item.rarity] || _FILES_RARITY_COLORS.common;
+    const stats = Object.entries(item.stats || {})
       .map(([k, v]) => _FILES_STAT_LABELS[k] ? `<span class="stat-badge">${_FILES_STAT_LABELS[k](v)}</span>` : '')
       .filter(Boolean).join('');
-    const ext = s.filename.includes('.') ? '.' + s.filename.split('.').pop() : '.sh';
-
+    const ext = item.filename.includes('.') ? '.' + item.filename.split('.').pop() : '.sh';
     return `
       <div class="files-entry">
         <span class="files-entry-ext">${ext}</span>
-        <span class="files-entry-name" style="color:${color}">${s.filename}</span>
+        <span class="files-entry-name" style="color:${color}">${item.filename}</span>
         <div class="files-entry-tags">
-          <span class="rarity-tag rarity-${s.rarity}">${s.rarity}</span>
+          <span class="rarity-tag rarity-${item.rarity}">${item.rarity}</span>
+          ${badge}
           ${stats}
         </div>
-        <span class="files-entry-desc">${s.description}</span>
+        <span class="files-entry-desc">${item.description}</span>
       </div>
     `;
-  }).join('');
+  };
+
+  return [
+    ...ownedProgs.map(p => {
+      const isEquipped = isProgramEquipped(p.id);
+      const badge = `<span class="stat-badge">${isEquipped ? 'equipped' : 'inventory'}</span>`;
+      return renderItem(p, badge);
+    }),
+    ...ownedScripts.map(s => {
+      const count = state.scripts[s.id] || 0;
+      const badge = count > 1 ? `<span class="stat-badge">×${count}</span>` : '';
+      return renderItem(s, badge);
+    }),
+  ].join('');
 }
 
 // ── Hashes ────────────────────────────────────────────────

@@ -2,6 +2,14 @@ const state = {
   balance: 75,
   hardware: { cpu: 0, ram: 0, gpu: 0 },
   operations: {},
+  programs: {
+    equipped: {
+      operations: [null, null],
+      security:   [null],
+      system:     [null, null],
+    },
+    inventory: [],
+  },
   scripts: { hash_cracker_basic: true },
   messages: [],
   map: null,
@@ -11,16 +19,54 @@ const state = {
   gameStartTime: Date.now(),
 };
 
+// ── Program / Script lookups ─────────────────────────────
+
+function getProgram(id) {
+  return PROGRAMS.find(p => p.id === id);
+}
+
+function getScript(id) {
+  return SCRIPTS.find(s => s.id === id);
+}
+
+// ── Equipped programs ────────────────────────────────────
+
+function getEquippedProgramIds() {
+  const { operations, security, system } = state.programs.equipped;
+  return [...operations, ...security, ...system].filter(Boolean);
+}
+
+function isProgramEquipped(id) {
+  return getEquippedProgramIds().includes(id);
+}
+
+function isProgramOwned(id) {
+  return state.programs.inventory.includes(id) || isProgramEquipped(id);
+}
+
+// ── Slot management ──────────────────────────────────────
+
+function getOperationsSlotCount() {
+  return Math.min(5, 2 + state.hardware.cpu);
+}
+
+function getSystemSlotCount() {
+  return Math.min(4, 2 + Math.max(0, state.hardware.ram - 1));
+}
+
+function _syncProgramSlots() {
+  const ops = getOperationsSlotCount();
+  const sys = getSystemSlotCount();
+  while (state.programs.equipped.operations.length < ops) state.programs.equipped.operations.push(null);
+  while (state.programs.equipped.system.length < sys) state.programs.equipped.system.push(null);
+}
+
 // ── Hardware / Resources ─────────────────────────────────
 
 function getCapacity(type) {
   const hw       = HARDWARE[type].tiers[state.hardware[type]].capacity;
   const borrowed = typeof getBorrowedResources === 'function' ? getBorrowedResources()[type] : 0;
   return hw + borrowed;
-}
-
-function getScript(scriptId) {
-  return SCRIPTS.find(s => s.id === scriptId);
 }
 
 function getOpCosts(op) {
@@ -33,6 +79,10 @@ function getOpCosts(op) {
 
 function getUsedResources() {
   let cpu = 0, ram = 0, gpu = 0;
+  for (const id of getEquippedProgramIds()) {
+    const p = getProgram(id);
+    if (p) { cpu += p.cpu; ram += p.ram; gpu += p.gpu; }
+  }
   for (const op of OPERATIONS) {
     if (state.operations[op.id]) {
       const costs = getOpCosts(op);
@@ -42,14 +92,18 @@ function getUsedResources() {
   return { cpu, ram, gpu };
 }
 
+function isOperationActive(op) {
+  if (op.requiredScript) return !!state.scripts[op.requiredScript] && !!state.operations[op.id];
+  return !!state.operations[op.id];
+}
+
 function getOpStatus(op) {
   if (op.requiredScript) {
-    const script = getScript(op.requiredScript);
-    if (!script || !state.scripts[script.id]) return 'no-script';
+    if (!state.scripts[op.requiredScript]) return 'no-script';
   }
-  const costs = getOpCosts(op);
+  const costs = { cpu: op.cpu ?? 0, ram: op.ram ?? 0, gpu: op.gpu ?? 0 };
   const used = getUsedResources();
-  const fits = costs && (
+  const fits = (
     used.cpu + costs.cpu <= getCapacity('cpu') &&
     used.ram + costs.ram <= getCapacity('ram') &&
     used.gpu + costs.gpu <= getCapacity('gpu')
@@ -79,6 +133,15 @@ function buyHardware(type) {
   if (state.balance < next.cost) return;
   state.balance -= next.cost;
   state.hardware[type] = tierIdx + 1;
+  _syncProgramSlots();
+  renderCards();
+}
+
+function buyProgram(id) {
+  const prog = getProgram(id);
+  if (!prog || isProgramOwned(id) || state.balance < prog.cost) return;
+  state.balance -= prog.cost;
+  state.programs.inventory.push(id);
   renderCards();
 }
 
@@ -90,17 +153,59 @@ function buyScript(id) {
   renderCards();
 }
 
+function equipProgram(id, slotType, slotIndex) {
+  const prog = getProgram(id);
+  if (!prog || prog.slotType !== slotType) return;
+
+  const invIdx = state.programs.inventory.indexOf(id);
+  if (invIdx === -1) return;
+
+  // Resource check: free what's currently in slot, then check if new prog fits
+  const currentId = state.programs.equipped[slotType][slotIndex];
+  const used = getUsedResources();
+  const freed = currentId ? (() => {
+    const p = getProgram(currentId);
+    return p ? { cpu: p.cpu, ram: p.ram, gpu: p.gpu } : { cpu: 0, ram: 0, gpu: 0 };
+  })() : { cpu: 0, ram: 0, gpu: 0 };
+
+  const fits = (
+    used.cpu - freed.cpu + prog.cpu <= getCapacity('cpu') &&
+    used.ram - freed.ram + prog.ram <= getCapacity('ram') &&
+    used.gpu - freed.gpu + prog.gpu <= getCapacity('gpu')
+  );
+  if (!fits) return;
+
+  if (currentId) state.programs.inventory.push(currentId);
+  state.programs.inventory.splice(invIdx, 1);
+  state.programs.equipped[slotType][slotIndex] = id;
+  renderCards();
+}
+
+function unequipProgram(slotType, slotIndex) {
+  const id = state.programs.equipped[slotType][slotIndex];
+  if (!id) return;
+  state.programs.equipped[slotType][slotIndex] = null;
+  state.programs.inventory.push(id);
+  renderCards();
+}
+
 // ── Income ───────────────────────────────────────────────
 
-function getIncomePerSec() {
-  const globalMultiplier = SCRIPTS.reduce((mult, s) => {
-    if (state.scripts[s.id] && s.stats?.incomeMultiplier) {
-      return mult * s.stats.incomeMultiplier;
-    }
-    return mult;
-  }, 1);
+function getExposureDecayBonus() {
+  return getEquippedProgramIds().map(getProgram).filter(Boolean)
+    .reduce((sum, p) => sum + (p.stats?.exposureDecay || 0), 0);
+}
 
-  const opIncome   = OPERATIONS.reduce((sum, op) => sum + (state.operations[op.id] ? op.incomePerSec : 0), 0);
+function getIncomePerSec() {
+  // Multipliers stack from both owned scripts and equipped programs
+  let globalMultiplier = 1;
+  for (const s of SCRIPTS) {
+    if (state.scripts[s.id] && s.stats?.incomeMultiplier) globalMultiplier *= s.stats.incomeMultiplier;
+  }
+  for (const p of getEquippedProgramIds().map(getProgram).filter(Boolean)) {
+    if (p.stats?.incomeMultiplier) globalMultiplier *= p.stats.incomeMultiplier;
+  }
+  const opIncome    = OPERATIONS.reduce((sum, op) => sum + (isOperationActive(op) ? op.incomePerSec : 0), 0);
   const bleedIncome = typeof getBleedIncomePerSec === 'function' ? getBleedIncomePerSec() : 0;
   return (opIncome + bleedIncome) * globalMultiplier;
 }
@@ -126,10 +231,13 @@ const _CONTRACT_BODIES = {
 };
 
 function getContractDuration(durationSecs) {
-  const speedBonus = SCRIPTS.reduce((best, s) => {
-    if (state.scripts[s.id] && s.stats?.contractSpeedBonus) return Math.max(best, s.stats.contractSpeedBonus);
-    return best;
-  }, 1);
+  let speedBonus = 1;
+  for (const s of SCRIPTS) {
+    if (state.scripts[s.id] && s.stats?.contractSpeedBonus) speedBonus = Math.max(speedBonus, s.stats.contractSpeedBonus);
+  }
+  for (const p of getEquippedProgramIds().map(getProgram).filter(Boolean)) {
+    if (p.stats?.contractSpeedBonus) speedBonus = Math.max(speedBonus, p.stats.contractSpeedBonus);
+  }
   return Math.floor((durationSecs * 1000) / speedBonus);
 }
 
@@ -190,7 +298,6 @@ function _generateContract() {
   const sender = _CONTRACT_SENDERS[Math.floor(Math.random() * _CONTRACT_SENDERS.length)];
 
   const hasNetworkTool = state.scripts['ssh_brute'] || state.scripts['exploit_kit'];
-  // hash_crack appears twice so it stays common even when map contracts are available
   const types = ['hash_crack', 'hash_crack'];
   if (hasNetworkTool && _nodesWithinHops(tier).length > 0) {
     types.push('exfil', 'backdoor', 'disrupt');
@@ -265,7 +372,6 @@ function acceptContract(msgId) {
   msg.completesAt = Date.now() + getContractDuration(msg.duration);
   if (msg.contractType === 'hash_crack') {
     msg.hashesAtAccept = state.totalHashesCracked;
-    // Client provides the hashes — add them to the crack queue
     const valueRanges = [[50, 200], [150, 500], [400, 1200]];
     const [min, max]  = valueRanges[(msg.tier || 1) - 1];
     const now2        = Date.now();
@@ -345,7 +451,6 @@ function _checkContractConditions(msg) {
       if (!node || node.status !== 'disrupted') { msg.disruptStartedAt = null; return false; }
       if (!msg.disruptStartedAt) {
         msg.disruptStartedAt = Date.now();
-        // Deadline starts now: required downtime + 30s grace to handle the completion tick
         msg.completesAt = msg.disruptStartedAt + msg.disruptDuration + 30000;
       }
       return Date.now() - msg.disruptStartedAt >= msg.disruptDuration;
@@ -355,7 +460,7 @@ function _checkContractConditions(msg) {
   }
 }
 
-// Contract management tick — every second
+// Contract tick — every second
 let _lastContractSpawnTime = 0;
 
 setInterval(() => {
@@ -363,7 +468,6 @@ setInterval(() => {
   const elapsed = now - state.gameStartTime;
   let changed   = false;
 
-  // Spawn: first contract at 12s, then every 35s, max 3 pending
   const pending = state.messages.filter(m => m.status === 'unread' || m.status === 'read').length;
   if (elapsed >= 12000 && pending < 3 && now - _lastContractSpawnTime >= 35000) {
     const contract = _generateContract();
@@ -385,7 +489,6 @@ setInterval(() => {
     }
   }
 
-  // Restore disrupted nodes when their disrupt contract ends
   if (state.map) {
     for (const node of state.map.nodes) {
       if (node.status !== 'disrupted') continue;
@@ -405,10 +508,13 @@ function affordSnapshot() {
     const next = HARDWARE[type].tiers[state.hardware[type] + 1];
     return next ? (state.balance >= next.cost ? '1' : '0') : 'x';
   }).join('');
+  const progs = PROGRAMS.map(p =>
+    isProgramOwned(p.id) ? 'o' : (state.balance >= p.cost ? '1' : '0')
+  ).join('');
   const scripts = SCRIPTS.map(s =>
     state.scripts[s.id] ? 'o' : (state.balance >= s.cost ? '1' : '0')
   ).join('');
-  return hw + scripts;
+  return hw + progs + scripts;
 }
 
 let _lastAffordSnapshot = '';

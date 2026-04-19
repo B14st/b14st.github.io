@@ -1,4 +1,20 @@
-// ── Generation ────────────────────────────────────────────
+// ── Port generation ───────────────────────────────────────
+
+function _generatePorts(nodeType) {
+  const config = NODE_PORT_CONFIG[nodeType] || NODE_PORT_CONFIG.pc;
+  const pool   = [...(NODE_PORT_POOLS[nodeType] || NODE_PORT_POOLS.pc)];
+
+  // Shuffle pool and take `total` ports
+  pool.sort(() => Math.random() - 0.5);
+  const selected = pool.slice(0, config.total);
+
+  // Randomly mark `open` ports, then shuffle order so open isn't always first
+  return selected
+    .map((type, i) => ({ type, open: i < config.open, discovered: false }))
+    .sort(() => Math.random() - 0.5);
+}
+
+// ── Map generation ────────────────────────────────────────
 
 function _mapDist(a, b) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
@@ -39,13 +55,20 @@ function generateMap() {
         status:       ring === 0 ? 'compromised' : ring === 1 ? 'discovered' : 'unknown',
         borrowing:    false,
         bleeding:     false,
-        hackStartedAt: null,
-        hackEndsAt:    null,
-        searched:     type === 'home', // home node is not searchable
-        lootFound:    null,
+        // Exploit progress
+        hackStartedAt:  null,
+        hackEndsAt:     null,
+        exploitScriptId: null,
+        // Loot
+        searched:  type === 'home',
+        lootFound: null,
+        // Port scan
+        ports:           type === 'home' ? [] : _generatePorts(type),
+        scanned:         type === 'home',
+        scanScriptId:    null,
+        nextPortRevealAt: null,
       });
 
-      // Connect to nearest node(s) in previous ring
       if (prevRing.length > 0) {
         const cur    = nodes[nodes.length - 1];
         const sorted = [...prevRing].sort((a, b) => _mapDist(cur, a) - _mapDist(cur, b));
@@ -56,7 +79,6 @@ function generateMap() {
       }
     }
 
-    // Sparse intra-ring edges for outer rings
     if (ring >= 2) {
       const rn = nodes.filter(n => n.ring === ring);
       for (let i = 0; i < rn.length; i++) {
@@ -73,28 +95,97 @@ function generateMap() {
   state.map = { nodes, edges };
 }
 
-// ── Hack Logic ────────────────────────────────────────────
+// ── Recon (port scan) ─────────────────────────────────────
 
-function getHackChance(node) {
-  let best = 0;
-  for (const [scriptId, odds] of Object.entries(HACK_SCRIPT_ODDS)) {
-    if (state.scripts[scriptId]) best = Math.max(best, odds[node.security] || 0);
+function getReconScripts() {
+  return SCRIPTS.filter(s => state.scripts[s.id] && (s.portTypes?.length || 0) > 0);
+}
+
+function getExploitScripts(node) {
+  if (!node.ports) return [];
+  const openTypes = node.ports.filter(p => p.open && p.discovered).map(p => p.type);
+  if (openTypes.length === 0) return [];
+  return SCRIPTS.filter(s => state.scripts[s.id] && s.portTypes?.some(t => openTypes.includes(t)));
+}
+
+function canScan(node) {
+  if (node.type === 'home') return false;
+  if (node.status !== 'discovered' && node.status !== 'offline') return false;
+  return getReconScripts().length > 0;
+}
+
+function canExploit(node) {
+  if (!node.scanned) return false;
+  if (node.status !== 'discovered' && node.status !== 'offline') return false;
+  return getExploitScripts(node).length > 0;
+}
+
+function startScan(nodeId, scriptId) {
+  const node   = state.map?.nodes.find(n => n.id === nodeId);
+  const script = SCRIPTS.find(s => s.id === scriptId);
+  if (!node || !script || !state.scripts[scriptId] || !script.portTypes?.length) return;
+  if (node.status !== 'discovered' && node.status !== 'offline') return;
+  if (node.type === 'home') return;
+
+  // Reset any previous discoveries
+  for (const port of node.ports) port.discovered = false;
+  node.scanned = false;
+
+  node.status       = 'scanning';
+  node.scanScriptId = scriptId;
+  const interval    = Math.floor(3000 / (script.reconSpeed || 1));
+  node.nextPortRevealAt = Date.now() + interval;
+  renderCards();
+}
+
+function _revealNextPort(node) {
+  const undiscovered = node.ports.filter(p => !p.discovered);
+  if (undiscovered.length === 0) {
+    node.status          = 'discovered';
+    node.scanned         = true;
+    node.scanScriptId    = null;
+    node.nextPortRevealAt = null;
+    return;
   }
-  return best;
+
+  undiscovered[0].discovered = true;
+
+  if (node.ports.every(p => p.discovered)) {
+    node.status          = 'discovered';
+    node.scanned         = true;
+    node.scanScriptId    = null;
+    node.nextPortRevealAt = null;
+  } else {
+    const script   = SCRIPTS.find(s => s.id === node.scanScriptId);
+    const interval = Math.floor(3000 / (script?.reconSpeed || 1));
+    node.nextPortRevealAt = Date.now() + interval;
+  }
 }
 
-function canStartHack(node) {
-  if (node.status !== 'discovered') return false;
-  const needed = NODE_TYPES[node.type].hackScript;
-  return !needed || !!state.scripts[needed];
-}
-
-function startHack(nodeId) {
+function rescan(nodeId) {
   const node = state.map?.nodes.find(n => n.id === nodeId);
-  if (!node || !canStartHack(node)) return;
-  node.status        = 'hacking';
-  node.hackStartedAt = Date.now();
-  node.hackEndsAt    = Date.now() + node.hackDuration * 1000;
+  if (!node || node.status !== 'discovered') return;
+  node.scanned = false;
+  for (const port of node.ports) port.discovered = false;
+  renderCards();
+}
+
+// ── Exploit ───────────────────────────────────────────────
+
+function startExploit(nodeId, scriptId) {
+  const node   = state.map?.nodes.find(n => n.id === nodeId);
+  const script = SCRIPTS.find(s => s.id === scriptId);
+  if (!node || !script || !state.scripts[scriptId]) return;
+  if (!node.scanned) return;
+  if (node.status !== 'discovered' && node.status !== 'offline') return;
+
+  const openTypes = node.ports.filter(p => p.open && p.discovered).map(p => p.type);
+  if (!script.portTypes?.some(t => openTypes.includes(t))) return;
+
+  node.status          = 'hacking';
+  node.hackStartedAt   = Date.now();
+  node.hackEndsAt      = Date.now() + node.hackDuration * 1000;
+  node.exploitScriptId = scriptId;
   renderCards();
 }
 
@@ -108,15 +199,13 @@ function _revealNeighbors(nodeId) {
 }
 
 function _resolveHack(node) {
-  if (Math.random() < getHackChance(node)) {
-    node.status = 'compromised';
-    _revealNeighbors(node.id);
-    _expireContractsTargeting(node.id);
-  } else {
-    node.status = 'discovered';
-  }
-  node.hackStartedAt = null;
-  node.hackEndsAt    = null;
+  // Deterministic success — no RNG
+  node.status          = 'compromised';
+  node.hackStartedAt   = null;
+  node.hackEndsAt      = null;
+  node.exploitScriptId = null;
+  _revealNeighbors(node.id);
+  _expireContractsTargeting(node.id);
 }
 
 function _expireContractsTargeting(nodeId) {
@@ -168,7 +257,7 @@ function toggleBleed(nodeId) {
 function disruptNode(nodeId) {
   const node = state.map?.nodes.find(n => n.id === nodeId);
   if (!node || node.status !== 'compromised' || node.type === 'home') return;
-  node.status   = 'disrupted';
+  node.status    = 'disrupted';
   node.borrowing = false;
   node.bleeding  = false;
   renderCards();
@@ -183,7 +272,7 @@ function getExposureGainRate() {
     if (node.borrowing) rate += 0.5;
     if (node.bleeding)  rate += 1.8;
   }
-  return rate; // per second
+  return rate;
 }
 
 // ── Map Tick ─────────────────────────────────────────────
@@ -193,16 +282,21 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
 
-  // Resolve completed hacks
   for (const node of state.map.nodes) {
+    // Exploit completion
     if (node.status === 'hacking' && node.hackEndsAt && now >= node.hackEndsAt) {
       _resolveHack(node);
       changed = true;
     }
+    // Port scan tick — reveal one port at a time
+    if (node.status === 'scanning' && node.nextPortRevealAt && now >= node.nextPortRevealAt) {
+      _revealNextPort(node);
+      changed = true;
+    }
   }
 
-  // Exposure: gain from risky nodes, decay 1/s passively
-  const net = getExposureGainRate() - 1.0;
+  // Exposure: gain from risky nodes, decay passively + from equipped security programs
+  const net = getExposureGainRate() - 1.0 - getExposureDecayBonus();
   state.exposure = Math.max(0, Math.min(100, state.exposure + net));
 
   // High exposure: random active node goes offline

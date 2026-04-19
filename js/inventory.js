@@ -2,13 +2,18 @@
 
 function getCrackConfig() {
   let slots = 0, speed = 1;
-  for (const script of SCRIPTS) {
-    if (state.scripts[script.id] && script.stats?.parallelCracks) {
-      if (script.stats.parallelCracks > slots) {
-        slots = script.stats.parallelCracks;
-        speed = script.stats.contractSpeedBonus || 1;
-      }
+  // Best from owned scripts
+  for (const s of SCRIPTS) {
+    if (state.scripts[s.id] && s.stats?.parallelCracks && s.stats.parallelCracks > slots) {
+      slots = s.stats.parallelCracks;
     }
+    if (state.scripts[s.id] && s.stats?.contractSpeedBonus) speed = Math.max(speed, s.stats.contractSpeedBonus);
+  }
+  // Best from equipped programs (stack on top — take max of each)
+  for (const id of getEquippedProgramIds()) {
+    const p = getProgram(id);
+    if (p?.stats?.parallelCracks && p.stats.parallelCracks > slots) slots = p.stats.parallelCracks;
+    if (p?.stats?.contractSpeedBonus) speed = Math.max(speed, p.stats.contractSpeedBonus);
   }
   return { slots, speed };
 }
@@ -27,7 +32,7 @@ const DUMP_RANGES = {
   company: [700, 2000],
 };
 
-const SCRIPT_RARITY_ODDS = {
+const PROGRAM_RARITY_ODDS = {
   pc:      { common: 0.70, uncommon: 0.28, rare: 0.02 },
   server:  { common: 0.45, uncommon: 0.40, rare: 0.15 },
   company: { common: 0.20, uncommon: 0.45, rare: 0.35 },
@@ -37,8 +42,8 @@ function _randRange([min, max]) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-function _rollScript(node) {
-  const odds = SCRIPT_RARITY_ODDS[node.type] || SCRIPT_RARITY_ODDS.pc;
+function _rollProgram(node) {
+  const odds = PROGRAM_RARITY_ODDS[node.type] || PROGRAM_RARITY_ODDS.pc;
   const r = Math.random();
   let cum = 0, targetRarity = 'common';
   for (const [rarity, prob] of Object.entries(odds)) {
@@ -46,20 +51,20 @@ function _rollScript(node) {
     if (r < cum) { targetRarity = rarity; break; }
   }
 
-  const pool = SCRIPTS.filter(s =>
-    s.rarity === targetRarity &&
-    s.rarity !== 'legendary' &&
-    !state.scripts[s.id]
+  const pool = PROGRAMS.filter(p =>
+    p.rarity === targetRarity &&
+    p.rarity !== 'legendary' &&
+    !isProgramOwned(p.id)
   );
 
   const fallback = pool.length > 0
     ? pool
-    : SCRIPTS.filter(s => !state.scripts[s.id] && s.rarity !== 'legendary');
+    : PROGRAMS.filter(p => !isProgramOwned(p.id) && p.rarity !== 'legendary');
 
   if (fallback.length === 0) return _rollHash(node);
 
   const chosen = fallback[Math.floor(Math.random() * fallback.length)];
-  return { type: 'script', scriptId: chosen.id };
+  return { type: 'program', programId: chosen.id };
 }
 
 function _rollHash(node) {
@@ -72,7 +77,7 @@ function _rollDump(node) {
 
 function _rollLootItem(node) {
   const r = Math.random();
-  if (r < 0.40) return _rollScript(node);
+  if (r < 0.40) return _rollProgram(node);
   if (r < 0.75) return _rollHash(node);
   return _rollDump(node);
 }
@@ -90,8 +95,10 @@ function searchNode(nodeId) {
   node.lootFound = items;
 
   for (const item of items) {
-    if (item.type === 'script') {
-      state.scripts[item.scriptId] = true;
+    if (item.type === 'program') {
+      if (!isProgramOwned(item.programId)) {
+        state.programs.inventory.push(item.programId);
+      }
     } else if (item.type === 'hash') {
       state.inventory.hashes.push({
         id:            `hash_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
@@ -157,7 +164,6 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
 
-  // Complete finished cracks
   for (const hash of state.inventory.hashes) {
     if (hash.status === 'cracking' && hash.cracksAt && now >= hash.cracksAt) {
       hash.status = 'done';
@@ -166,7 +172,6 @@ setInterval(() => {
     }
   }
 
-  // Fill free slots with pending hashes
   if (slots > 0) {
     const active   = state.inventory.hashes.filter(h => h.status === 'cracking').length;
     const free     = slots - active;

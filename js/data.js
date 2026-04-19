@@ -1,10 +1,97 @@
+// Equippable software — slotted in the Programs tab, provide passive system-level effects
+const PROGRAMS = [
+  // ── Operations slot ────────────────────────────────────────
+  {
+    id: 'autoproxy',
+    filename: 'autoproxy.exe',
+    description: 'Intelligent traffic routing daemon. Boosts all passive income streams.',
+    rarity: 'common',
+    category: 'automation',
+    slotType: 'operations',
+    stats: { incomeMultiplier: 1.1 },
+    cost: 350,
+    cpu: 1, ram: 1, gpu: 0,
+  },
+  {
+    id: 'traffic_optimizer',
+    filename: 'traffic_optimizer.exe',
+    description: 'Deep packet inspection and flow optimization. Significantly boosts all passive income.',
+    rarity: 'uncommon',
+    category: 'automation',
+    slotType: 'operations',
+    stats: { incomeMultiplier: 1.25 },
+    cost: 1400,
+    cpu: 2, ram: 2, gpu: 0,
+  },
+  // ── System slot ────────────────────────────────────────────
+  {
+    id: 'john_the_ripper',
+    filename: 'john_the_ripper.exe',
+    description: 'Classic password cracking suite. Cracks 1 wallet hash at a time independently of your script stack.',
+    rarity: 'common',
+    category: 'contract',
+    slotType: 'system',
+    stats: { parallelCracks: 1 },
+    cost: 200,
+    cpu: 1, ram: 1, gpu: 0,
+  },
+  {
+    id: 'hashcat',
+    filename: 'hashcat.exe',
+    description: 'GPU-accelerated cracking suite. Runs 3 parallel hash jobs with 1.4× throughput.',
+    rarity: 'uncommon',
+    category: 'contract',
+    slotType: 'system',
+    stats: { parallelCracks: 3, contractSpeedBonus: 1.4 },
+    cost: 1100,
+    cpu: 4, ram: 3, gpu: 2,
+  },
+  {
+    id: 'metasploit',
+    filename: 'metasploit.exe',
+    description: 'Industry-grade exploitation framework. Dramatically accelerates contract completion.',
+    rarity: 'rare',
+    category: 'contract',
+    slotType: 'system',
+    stats: { contractSpeedBonus: 1.8 },
+    cost: 3200,
+    cpu: 3, ram: 4, gpu: 0,
+  },
+  // ── Security slot ──────────────────────────────────────────
+  {
+    id: 'vpn',
+    filename: 'vpn.exe',
+    description: 'Encrypted traffic tunneling. Passively reduces exposure accumulation.',
+    rarity: 'common',
+    category: 'stealth',
+    slotType: 'security',
+    stats: { exposureDecay: 1 },
+    cost: 300,
+    cpu: 1, ram: 1, gpu: 0,
+  },
+  {
+    id: 'tor',
+    filename: 'tor.exe',
+    description: 'Multi-hop onion routing. Substantially reduces exposure accumulation rate.',
+    rarity: 'uncommon',
+    category: 'stealth',
+    slotType: 'security',
+    stats: { exposureDecay: 2.5 },
+    cost: 1000,
+    cpu: 2, ram: 2, gpu: 0,
+  },
+];
+
+// Hacking scripts — owned and used for active tasks (hacking, contracts, operations)
 const SCRIPTS = [
   {
     id: 'ssh_brute',
     filename: 'ssh_brute.sh',
-    description: 'Dictionary-based SSH attack tool. Reliable against unprotected workstations, limited against hardened targets.',
+    description: 'Dictionary-based SSH attack tool. Scans and exploits SSH ports.',
     rarity: 'uncommon',
     category: 'network',
+    portTypes: ['ssh'],
+    reconSpeed: 1.0,
     stats: {},
     cost: 200,
     cpu: 2, ram: 1, gpu: 0,
@@ -12,9 +99,11 @@ const SCRIPTS = [
   {
     id: 'exploit_kit',
     filename: 'exploit_kit.py',
-    description: 'Modular exploit framework. Chains known CVEs for access to servers and corporate infrastructure.',
+    description: 'Modular exploit framework. Chains known CVEs against HTTP, FTP and RDP endpoints. Faster port scanning.',
     rarity: 'rare',
     category: 'network',
+    portTypes: ['http', 'ftp', 'rdp'],
+    reconSpeed: 1.5,
     stats: {},
     cost: 1800,
     cpu: 4, ram: 4, gpu: 0,
@@ -133,8 +222,6 @@ const SCRIPTS = [
   },
 ];
 
-// Contracts are generated dynamically in game.js — see _generateContract()
-
 const OPERATIONS = [
   {
     id: 'bandwidth_leasing',
@@ -191,7 +278,6 @@ const HARDWARE = {
       { label: 'VidForce GTX-6',  model: 'VidForce GTX-6',      spec: '6 GB VRAM / GDDR6',   capacity: 6,  cost: 300  },
       { label: 'VidForce RTX-8',  model: 'VidForce RTX-8 Pro',  spec: '8 GB VRAM / GDDR6X',  capacity: 8,  cost: 900  },
       { label: 'VidForce RTX-24', model: 'VidForce RTX-24 XT',  spec: '24 GB VRAM / GDDR7',  capacity: 24, cost: 3500 },
-      
     ],
   },
 };

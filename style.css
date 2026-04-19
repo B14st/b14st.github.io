@@ -166,8 +166,127 @@ html, body {
   flex-shrink: 0;
 }
 
+.sidebar-resources {
+  padding: 10px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-res-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-res-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  width: 26px;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-res-track {
+  flex: 1;
+  height: 3px;
+}
+
+.sidebar-res-reading {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Map summary ── */
+
+.map-summary-container {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.map-summary-inner {
+  padding: 5px 8px 6px;
+}
+
+.map-summary-group {
+  margin-bottom: 1px;
+}
+
+.map-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.map-summary-row:hover {
+  background: var(--surface);
+}
+
+.map-summary-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.map-summary-label {
+  flex: 1;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.map-summary-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-secondary);
+  min-width: 10px;
+  text-align: right;
+}
+
+.map-summary-arrow {
+  font-size: 8px;
+  color: var(--text-muted);
+  width: 8px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.map-summary-nodes {
+  padding: 1px 0 3px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.map-summary-node {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  padding: 2px 4px;
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.map-summary-node:hover {
+  opacity: 1;
+  background: var(--surface);
+}
+
 .sidebar-balance {
-  padding: 12px 10px 4px;
+  padding: 8px 10px 4px;
   display: flex;
   flex-direction: column;
   gap: 5px;

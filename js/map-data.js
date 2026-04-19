@@ -12,7 +12,7 @@ const NODE_TYPES = {
     security: 1,
     resources: { cpu: 2, ram: 4, gpu: 0 },
     bleedPerSec: 0,
-    hackScript: 'ssh_brute',
+    hackScript: null,
     bleedScript: null,
   },
   server: {
@@ -20,7 +20,7 @@ const NODE_TYPES = {
     security: 2,
     resources: { cpu: 4, ram: 8, gpu: 2 },
     bleedPerSec: 0,
-    hackScript: 'exploit_kit',
+    hackScript: null,
     bleedScript: null,
   },
   company: {
@@ -28,18 +28,38 @@ const NODE_TYPES = {
     security: 3,
     resources: { cpu: 8, ram: 16, gpu: 4 },
     bleedPerSec: 3.5,
-    hackScript: 'exploit_kit',
+    hackScript: null,
     bleedScript: 'corp_bleeder',
   },
 };
 
-// Success chance: scriptId → security level → probability
-const HACK_SCRIPT_ODDS = {
-  ssh_brute:   { 1: 0.80, 2: 0.40, 3: 0.10 },
-  exploit_kit: { 1: 0.95, 2: 0.80, 3: 0.55 },
+const HACK_DURATIONS = { pc: 20, server: 45, company: 90 };
+
+// Port recon system
+const PORT_TYPES = ['ssh', 'http', 'ftp', 'rdp', 'sql', 'smb'];
+
+const NODE_PORT_CONFIG = {
+  pc:      { total: 3,  open: 1 },
+  server:  { total: 6,  open: 1 },
+  company: { total: 10, open: 2 },
 };
 
-const HACK_DURATIONS = { pc: 20, server: 45, company: 90 };
+// Port type colors for UI
+const PORT_COLORS = {
+  ssh:  '#4ade80',
+  http: '#5b9cf6',
+  ftp:  '#a78bfa',
+  rdp:  '#fb923c',
+  sql:  '#f59e0b',
+  smb:  '#f87171',
+};
+
+// Port pools per node type — determines which ports can appear
+const NODE_PORT_POOLS = {
+  pc:      ['ssh', 'http', 'ftp', 'rdp'],
+  server:  ['http', 'ftp', 'sql', 'ssh', 'rdp'],
+  company: ['ssh', 'http', 'ftp', 'rdp', 'sql', 'smb'],
+};
 
 // Map layout: rings of nodes
 const MAP_RINGS = [
