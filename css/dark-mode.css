@@ -1,0 +1,158 @@
+/* Dark mode and theme controls */
+:root {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #2878a8;
+  --primary-dark: #123f5d;
+  --primary-light: #17364b;
+  --accent: #f0a45d;
+  --accent-light: #3b2b1d;
+
+  --bg: #0d141c;
+  --surface: #151f2a;
+  --border: #2a3948;
+  --shadow: 0 1px 3px rgba(0,0,0,.36), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 6px 18px rgba(0,0,0,.38);
+
+  --text: #edf3f8;
+  --muted: #a8b6c5;
+  --dim: #718296;
+
+  --c-problem: #60a5fa;
+  --c-formula: #b69cff;
+  --c-why: #52d7a1;
+  --c-example: #f4b85f;
+  --c-limits: #fb8181;
+  --c-tips: #58d5e8;
+}
+
+body,
+.app-header,
+.detail-header,
+.category-bar,
+.topic-card,
+.section,
+.formula-box,
+.diagram-wrap,
+.example-answer,
+.related-chip,
+.conv-table td,
+.conv-section-head td {
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+
+html[data-theme="dark"] .app-header,
+html[data-theme="dark"] .detail-header {
+  background: #164f73;
+}
+
+html[data-theme="dark"] .category-bar {
+  background: #0e334c;
+}
+
+html[data-theme="dark"] .chip.active {
+  background: #edf3f8;
+  color: #164f73;
+  border-color: #edf3f8;
+}
+
+html[data-theme="dark"] .topic-card:hover,
+html[data-theme="dark"] .topic-card:focus-visible {
+  border-color: #4f9bc5;
+}
+
+html[data-theme="dark"] .section.problem .section-icon { background: #183755; }
+html[data-theme="dark"] .section.formula .section-icon { background: #30264c; }
+html[data-theme="dark"] .section.why .section-icon { background: #173d32; }
+html[data-theme="dark"] .section.example .section-icon { background: #42321a; }
+html[data-theme="dark"] .section.limits .section-icon { background: #482526; }
+html[data-theme="dark"] .section.tips .section-icon { background: #153d46; }
+
+html[data-theme="dark"] .formula-box {
+  background: #211c34;
+  border-color: #5a4b82;
+}
+
+html[data-theme="dark"] .formula-display {
+  color: #d8caff;
+}
+
+html[data-theme="dark"] .formula-legend,
+html[data-theme="dark"] .formula-note {
+  border-color: #5a4b82;
+}
+
+html[data-theme="dark"] .legend-sym,
+html[data-theme="dark"] .step-body .eq,
+html[data-theme="dark"] .conv-table td:first-child,
+html[data-theme="dark"] .conv-table td:nth-child(2) {
+  color: #c4b5fd;
+}
+
+html[data-theme="dark"] .diagram-wrap {
+  background: #101922;
+}
+
+html[data-theme="dark"] .conv-table thead + tbody tr:nth-child(even) td {
+  background: #111b25;
+}
+
+html[data-theme="dark"] .related-chip {
+  background: #17364b;
+  color: #9ed3ef;
+  border-color: #315d77;
+}
+
+html[data-theme="dark"] .related-chip:hover {
+  background: #20475f;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 9px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s ease, transform .12s ease;
+}
+
+.theme-toggle:hover { background: rgba(255,255,255,.22); }
+.theme-toggle:active { transform: scale(.96); }
+.theme-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.theme-toggle svg { width: 19px; height: 19px; }
+
+.header-branding .theme-toggle {
+  align-self: center;
+}
+
+.detail-header .theme-toggle {
+  margin-left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .app-header,
+  .detail-header,
+  .category-bar,
+  .topic-card,
+  .section,
+  .formula-box,
+  .diagram-wrap,
+  .example-answer,
+  .related-chip,
+  .conv-table td,
+  .conv-section-head td {
+    transition: none;
+  }
+}
